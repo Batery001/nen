@@ -12,6 +12,18 @@ import { getSessionByCode, listSessionItems, saveSession, usingMongo } from "./l
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET") {
     try {
+      const mine = req.query.mine === "1" || req.query.mine === "true";
+      if (mine) {
+        const user = await getUserFromRequest(req);
+        if (!user) {
+          return res.status(401).json({
+            ok: false,
+            error: "Inicia sesión para ver tus campañas",
+          });
+        }
+        const items = await listSessionItems({ memberUserId: user.id });
+        return res.status(200).json({ sessions: items });
+      }
       const items = await listSessionItems({ visibility: "public" });
       return res.status(200).json({ sessions: items });
     } catch (err) {

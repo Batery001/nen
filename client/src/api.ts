@@ -101,7 +101,7 @@ export async function listSessions(): Promise<SessionListItem[]> {
 }
 
 export async function listMyCampaigns(): Promise<SessionListItem[]> {
-  const res = await fetch(apiUrl("/api/campaigns/mine"), {
+  const res = await fetch(apiUrl("/api/sessions?mine=1"), {
     headers: authHeaders(),
   });
   if (res.status === 401) throw new Error("Inicia sesión para ver tus campañas");
