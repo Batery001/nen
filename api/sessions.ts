@@ -7,8 +7,20 @@ import type { JoinRequest } from "./lib/types.js";
 import { getSessionByCode, saveSession, usingMongo } from "./lib/store.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === "GET") {
+    try {
+      const { listSessionItems } = await import("./lib/store.js");
+      const items = await listSessionItems();
+      return res.status(200).json({ sessions: items });
+    } catch (err) {
+      console.error("GET /api/sessions", err);
+      const message = err instanceof Error ? err.message : "Error al listar mesas";
+      return res.status(500).json({ error: message });
+    }
+  }
+
   if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
+    res.setHeader("Allow", "GET, POST");
     return res.status(405).json({ error: "Método no permitido" });
   }
 

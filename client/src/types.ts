@@ -34,6 +34,24 @@ export interface PlaySessionRecord {
   published: boolean;
 }
 
+export interface PendingJoinRequest {
+  id: string;
+  name: string;
+  requestedAt: string;
+  status: "pending" | "approved" | "rejected";
+  resolvedAt?: string;
+  participantId?: string;
+}
+
+export interface SessionListItem {
+  id: string;
+  code: string;
+  campaignTitle: string;
+  createdAt: string;
+  participantCount: number;
+  pendingPlayerRequests: number;
+}
+
 export interface SessionSnapshot {
   id: string;
   code: string;
@@ -51,6 +69,8 @@ export interface JoinResponse {
   error?: string;
   session?: SessionSnapshot;
   you?: { participantId: string; role: Role };
+  pending?: boolean;
+  requestId?: string;
 }
 
 export interface HubView {
@@ -65,6 +85,7 @@ export interface HubView {
   playSessions?: PlaySessionRecord[];
   myCharacter?: CharacterSheet;
   characters?: CharacterSheet[];
+  pendingJoinRequests?: PendingJoinRequest[];
 }
 
 export interface HubMasterPatch {
@@ -89,7 +110,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   master: "Dirige la campaña y edita todo el hub.",
-  player: "Edita solo su personaje; lee lo publicado.",
+  player: "Requiere aprobación del master. Luego edita solo su personaje.",
   observer: "Escucha y lee resúmenes publicados.",
 };
 

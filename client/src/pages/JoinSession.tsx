@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getSessionByCode } from "../api";
 import { RoleCard } from "../components/RoleCard";
 import { joinSession } from "../api";
+import { savePendingRequest } from "../hooks/usePendingStorage";
 import { saveStoredSession } from "../hooks/useSessionStorage";
 import type { Role, SessionSnapshot } from "../types";
 
@@ -49,7 +50,23 @@ export function JoinSession() {
         role,
       });
 
-      if (!result.ok || !result.session || !result.you) {
+      if (!result.ok || !result.session) {
+        setError(result.error ?? "No se pudo unir");
+        return;
+      }
+
+      if (role === "player" && result.pending && result.requestId) {
+        savePendingRequest({
+          requestId: result.requestId,
+          code: result.session.code,
+          sessionId: result.session.id,
+          name: name.trim(),
+        });
+        navigate(`/espera/${result.session.code}`);
+        return;
+      }
+
+      if (!result.you) {
         setError(result.error ?? "No se pudo unir");
         return;
       }
@@ -77,7 +94,7 @@ export function JoinSession() {
       <div>
         <h2 className="font-display text-2xl">Unirse a partida</h2>
         <p className="mt-2 text-sm text-[var(--color-mist)]">
-          Pide el código al master e indica cómo quieres participar.
+          Como observador entras al instante. Como jugador, el master debe aprobar tu solicitud.
         </p>
       </div>
 
@@ -146,7 +163,11 @@ export function JoinSession() {
         disabled={loading || name.trim().length < 2 || code.trim().length < 4}
         className="w-full rounded-lg bg-[var(--color-gold)] py-3 font-semibold text-[var(--color-ink)] transition hover:bg-[#dbb52e] disabled:opacity-50"
       >
-        {loading ? "Conectando…" : "Entrar a la partida"}
+        {loading
+          ? "Conectando…"
+          : role === "player"
+            ? "Enviar solicitud al master"
+            : "Entrar a la partida"}
       </button>
     </form>
   );

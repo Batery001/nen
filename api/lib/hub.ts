@@ -8,6 +8,7 @@ import type {
   Role,
 } from "./types.js";
 import { ensureHubFields } from "./migrate.js";
+import { ensurePendingRequests } from "./joinRequests.js";
 
 export function findParticipant(
   session: GameSession,
@@ -56,6 +57,7 @@ export function buildHubView(session: GameSession, participantId: string): HubVi
       wiki: [...s.wiki],
       playSessions: [...s.playSessions],
       characters: [...s.characters],
+      pendingJoinRequests: ensurePendingRequests(s).filter((r) => r.status === "pending"),
     };
   }
 

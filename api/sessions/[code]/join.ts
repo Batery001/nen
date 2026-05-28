@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const result = joinSessionData(session, req.body as JoinRequest);
-    if (result.ok) await saveSession(session);
+    if (result.ok && (result.you || result.pending)) await saveSession(session);
     return res.status(result.ok ? 200 : 400).json(result);
   } catch (err) {
     console.error("POST /api/sessions/:code/join", err);

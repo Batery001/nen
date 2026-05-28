@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { fetchHub, leaveSession, updateCharacter, updateHub } from "../api";
+import { fetchHub, leaveSession, resolveJoinRequest, updateCharacter, updateHub } from "../api";
 import { loadStoredSession, clearStoredSession } from "../hooks/useSessionStorage";
 import {
   ROLE_LABELS,
@@ -55,6 +55,19 @@ function MasterHub({
   const [newWikiTitle, setNewWikiTitle] = useState("");
   const [newWikiBody, setNewWikiBody] = useState("");
   const [newWikiType, setNewWikiType] = useState<WikiEntryType>("note");
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+
+  async function handleJoinRequest(requestId: string, action: "approve" | "reject") {
+    setResolvingId(requestId);
+    try {
+      await resolveJoinRequest(hub.code, hub.participantId, requestId, action);
+      onRefresh();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Error al procesar solicitud");
+    } finally {
+      setResolvingId(null);
+    }
+  }
 
   async function saveCampaign() {
     setSaving(true);
@@ -106,8 +119,51 @@ function MasterHub({
     ]);
   }
 
+  const pending = hub.pendingJoinRequests ?? [];
+
   return (
     <div className="space-y-8">
+      {pending.length > 0 && (
+        <section className="space-y-3 rounded-xl border border-amber-900/50 bg-amber-950/20 p-4">
+          <h2 className="font-display text-lg text-amber-300">
+            Solicitudes de jugador ({pending.length})
+          </h2>
+          <ul className="space-y-2">
+            {pending.map((req) => (
+              <li
+                key={req.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--color-slate-border)] bg-[var(--color-slate-panel)] p-3"
+              >
+                <div>
+                  <p className="font-medium">{req.name}</p>
+                  <p className="text-xs text-[var(--color-mist)]">
+                    {new Date(req.requestedAt).toLocaleString("es")}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={resolvingId === req.id}
+                    onClick={() => handleJoinRequest(req.id, "reject")}
+                    className="rounded-lg border border-[var(--color-slate-border)] px-3 py-1.5 text-sm disabled:opacity-50"
+                  >
+                    Rechazar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={resolvingId === req.id}
+                    onClick={() => handleJoinRequest(req.id, "approve")}
+                    className="rounded-lg bg-[var(--color-gold)] px-3 py-1.5 text-sm font-semibold text-[var(--color-ink)] disabled:opacity-50"
+                  >
+                    {resolvingId === req.id ? "…" : "Aprobar"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="space-y-3">
         <h2 className="font-display text-lg text-[var(--color-gold)]">Campaña</h2>
         <input

@@ -7,5 +7,6 @@ export function ensureHubFields(session: GameSession): GameSession {
   if (!session.wiki) session.wiki = [];
   if (!session.characters) session.characters = [];
   if (!session.playSessions) session.playSessions = [];
+  if (!session.pendingJoinRequests) session.pendingJoinRequests = [];
   return session;
 }

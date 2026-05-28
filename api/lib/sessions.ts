@@ -1,5 +1,14 @@
 import { customAlphabet } from "nanoid";
-import type { GameSession, JoinRequest, JoinResponse, Participant, Role, SessionSnapshot } from "./types.js";
+import type {
+  GameSession,
+  JoinRequest,
+  JoinResponse,
+  Participant,
+  Role,
+  SessionListItem,
+  SessionSnapshot,
+} from "./types.js";
+import { createPlayerJoinRequest, ensurePendingRequests } from "./joinRequests.js";
 import { ensureHubFields } from "./migrate.js";
 import { ensureCharacter } from "./hub.js";
 
@@ -39,6 +48,54 @@ export function createSessionData(): GameSession {
   });
 }
 
+export function toListItem(session: GameSession): SessionListItem {
+  const s = ensureHubFields(session);
+  const pending = ensurePendingRequests(s);
+  return {
+    id: s.id,
+    code: s.code,
+    campaignTitle: s.campaignTitle,
+    createdAt: s.createdAt,
+    participantCount: s.participants.length,
+    pendingPlayerRequests: pending.filter((r) => r.status === "pending").length,
+  };
+}
+
+/** Añade participante sin pasar por solicitud (master/observador o jugador aprobado). */
+export function addParticipant(
+  session: GameSession,
+  name: string,
+  role: Role
+): JoinResponse {
+  const s = ensureHubFields(session);
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length < 2) {
+    return { ok: false, error: "El nombre debe tener al menos 2 caracteres" };
+  }
+
+  if (role === "master" && hasRole(s, "master")) {
+    return { ok: false, error: "Ya hay un master en esta partida" };
+  }
+
+  const participant: Participant = {
+    id: crypto.randomUUID(),
+    name: trimmed,
+    role,
+    connectedAt: new Date().toISOString(),
+  };
+
+  s.participants.push(participant);
+  if (role === "player") {
+    ensureCharacter(s, participant);
+  }
+
+  return {
+    ok: true,
+    session: toSnapshot(s),
+    you: { participantId: participant.id, role },
+  };
+}
+
 export function joinSessionData(session: GameSession, payload: JoinRequest): JoinResponse {
   const s = ensureHubFields(session);
   const name = payload.name?.trim();
@@ -50,27 +107,11 @@ export function joinSessionData(session: GameSession, payload: JoinRequest): Joi
     return { ok: false, error: "Partida no encontrada" };
   }
 
-  if (payload.role === "master" && hasRole(s, "master")) {
-    return { ok: false, error: "Ya hay un master en esta partida" };
-  }
-
-  const participant: Participant = {
-    id: crypto.randomUUID(),
-    name,
-    role: payload.role,
-    connectedAt: new Date().toISOString(),
-  };
-
-  s.participants.push(participant);
   if (payload.role === "player") {
-    ensureCharacter(s, participant);
+    return createPlayerJoinRequest(s, name);
   }
 
-  return {
-    ok: true,
-    session: toSnapshot(s),
-    you: { participantId: participant.id, role: payload.role },
-  };
+  return addParticipant(s, name, payload.role);
 }
 
 export function leaveSessionData(session: GameSession, participantId: string): SessionSnapshot | null {

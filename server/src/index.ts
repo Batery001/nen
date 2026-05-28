@@ -7,6 +7,10 @@ import {
   toSnapshot,
 } from "./lib/sessions.js";
 import {
+  getJoinRequestStatus,
+  resolveJoinRequest,
+} from "./lib/joinRequests.js";
+import {
   applyCharacterPatch,
   applyMasterPatch,
   buildHubView,
@@ -18,6 +22,7 @@ import {
   deleteSessionIfEmpty,
   getSessionByCode,
   initStore,
+  listSessionItems,
   saveSession,
   usingMongo,
 } from "./store.js";
@@ -68,6 +73,16 @@ app.get("/health", async (_req, res) => {
     ok: true,
     mongo: mongo ? (dbOk ? "connected" : "error") : "not_configured",
   });
+});
+
+app.get("/api/sessions", async (_req, res) => {
+  try {
+    const sessions = await listSessionItems();
+    res.json({ sessions });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al listar mesas" });
+  }
 });
 
 app.post("/api/sessions", async (req, res) => {
@@ -127,11 +142,54 @@ app.post("/api/sessions/:code/join", async (req, res) => {
     }
 
     const result = joinSessionData(session, req.body as JoinRequest);
-    if (result.ok) await saveSession(session);
+    if (result.ok && (result.you || result.pending)) await saveSession(session);
     res.status(result.ok ? 200 : 400).json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, error: "Error al unirse" });
+  }
+});
+
+app.get("/api/sessions/:code/join-requests/:requestId", async (req, res) => {
+  try {
+    const session = await getSessionByCode(req.params.code);
+    if (!session) {
+      res.status(404).json({ ok: false, error: "Partida no encontrada" });
+      return;
+    }
+    const result = getJoinRequestStatus(session, req.params.requestId);
+    res.status(result.ok ? 200 : 404).json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: "Error" });
+  }
+});
+
+app.post("/api/sessions/:code/join-requests/:requestId", async (req, res) => {
+  try {
+    const session = await getSessionByCode(req.params.code);
+    if (!session) {
+      res.status(404).json({ ok: false, error: "Partida no encontrada" });
+      return;
+    }
+    const { action, participantId } = req.body as {
+      action?: "approve" | "reject";
+      participantId?: string;
+    };
+    if (!participantId || !action) {
+      res.status(400).json({ error: "participantId y action requeridos" });
+      return;
+    }
+    if (!requireMaster(session, participantId)) {
+      res.status(403).json({ ok: false, error: "Solo el master puede gestionar solicitudes" });
+      return;
+    }
+    const result = resolveJoinRequest(session, req.params.requestId, action);
+    if (result.ok) await saveSession(session);
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: "Error" });
   }
 });
 

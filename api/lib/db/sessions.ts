@@ -22,3 +22,12 @@ export async function deleteSessionById(id: string): Promise<void> {
   const db = await getDb();
   await db.collection(COLLECTION).deleteOne({ id });
 }
+
+export async function listSessions(): Promise<GameSession[]> {
+  const db = await getDb();
+  return db
+    .collection<GameSession>(COLLECTION)
+    .find({})
+    .sort({ createdAt: -1 })
+    .toArray();
+}

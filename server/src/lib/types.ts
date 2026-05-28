@@ -34,6 +34,15 @@ export interface PlaySessionRecord {
   published: boolean;
 }
 
+export interface PendingJoinRequest {
+  id: string;
+  name: string;
+  requestedAt: string;
+  status: "pending" | "approved" | "rejected";
+  resolvedAt?: string;
+  participantId?: string;
+}
+
 export interface GameSession {
   id: string;
   code: string;
@@ -45,6 +54,16 @@ export interface GameSession {
   wiki: WikiEntry[];
   characters: CharacterSheet[];
   playSessions: PlaySessionRecord[];
+  pendingJoinRequests?: PendingJoinRequest[];
+}
+
+export interface SessionListItem {
+  id: string;
+  code: string;
+  campaignTitle: string;
+  createdAt: string;
+  participantCount: number;
+  pendingPlayerRequests: number;
 }
 
 export interface SessionSnapshot {
@@ -70,6 +89,8 @@ export interface JoinResponse {
   error?: string;
   session?: SessionSnapshot;
   you?: { participantId: string; role: Role };
+  pending?: boolean;
+  requestId?: string;
 }
 
 export interface HubView {
@@ -84,6 +105,7 @@ export interface HubView {
   playSessions?: PlaySessionRecord[];
   myCharacter?: CharacterSheet;
   characters?: CharacterSheet[];
+  pendingJoinRequests?: PendingJoinRequest[];
 }
 
 export interface HubMasterPatch {

@@ -4,6 +4,7 @@ import type {
   HubView,
   JoinResponse,
   Role,
+  SessionListItem,
   SessionSnapshot,
 } from "./types";
 
@@ -38,6 +39,13 @@ async function parseError(res: Response, fallback: string): Promise<string> {
   } catch (e) {
     return e instanceof Error ? e.message : fallback;
   }
+}
+
+export async function listSessions(): Promise<SessionListItem[]> {
+  const res = await fetch(apiUrl("/api/sessions"));
+  if (!res.ok) throw new Error(await parseError(res, "No se pudieron cargar las mesas"));
+  const data = await readJson<{ sessions: SessionListItem[] }>(res);
+  return data.sessions ?? [];
 }
 
 export async function createSession(): Promise<SessionSnapshot> {
@@ -126,6 +134,45 @@ export async function updateHub(
   });
   if (!res.ok) throw new Error(await parseError(res, "No se pudo guardar"));
   return readJson(res);
+}
+
+export async function getJoinRequestStatus(
+  code: string,
+  requestId: string
+): Promise<JoinResponse> {
+  const res = await fetch(
+    apiUrl(
+      `/api/sessions/${encodeURIComponent(code.toUpperCase())}/join-requests/${encodeURIComponent(requestId)}`
+    )
+  );
+  const data = await readJson<JoinResponse>(res);
+  if (!res.ok && !data.error) {
+    throw new Error("No se pudo consultar la solicitud");
+  }
+  return data;
+}
+
+export async function resolveJoinRequest(
+  code: string,
+  participantId: string,
+  requestId: string,
+  action: "approve" | "reject"
+): Promise<JoinResponse> {
+  const res = await fetch(
+    apiUrl(
+      `/api/sessions/${encodeURIComponent(code.toUpperCase())}/join-requests/${encodeURIComponent(requestId)}`
+    ),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ participantId, action }),
+    }
+  );
+  const data = await readJson<JoinResponse>(res);
+  if (!res.ok) {
+    throw new Error(data.error ?? "No se pudo procesar la solicitud");
+  }
+  return data;
 }
 
 export async function updateCharacter(

@@ -1,4 +1,5 @@
-import type { GameSession } from "../../lib/types.js";
+import type { GameSession, SessionListItem } from "../../lib/types.js";
+import { toListItem } from "./lib/sessions.js";
 import * as mongo from "../../lib/db/sessions.js";
 import { isMongoConfigured } from "../../lib/db/client.js";
 
@@ -44,6 +45,17 @@ export async function getSessionByCode(code: string): Promise<GameSession | unde
 
   const id = codeToSessionId.get(normalized);
   return id ? sessions.get(id) : undefined;
+}
+
+export async function listSessionItems(): Promise<SessionListItem[]> {
+  if (usingMongo()) {
+    const all = await mongo.listSessions();
+    return all.map((s) => toListItem(s));
+  }
+
+  return [...sessions.values()]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((s) => toListItem(s));
 }
 
 export async function deleteSessionIfEmpty(session: GameSession): Promise<void> {
