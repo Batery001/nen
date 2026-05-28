@@ -1,0 +1,36 @@
+---
+description: Tras cambios en el proyecto, hacer commit y push a GitHub para Vercel
+alwaysApply: true
+---
+
+# Git y despliegue en Vercel
+
+Este proyecto se despliega en **Vercel** desde el repo [Batery001/nen](https://github.com/Batery001/nen.git) (rama `main`).
+
+## Obligatorio al terminar cambios de código
+
+Cuando el usuario pida una funcionalidad, corrección o configuración y haya archivos modificados:
+
+1. Revisar `git status` y `git diff`.
+2. Hacer **commit** con mensaje claro en español o inglés (resumen del porqué).
+3. Hacer **push** a `origin main` sin que el usuario tenga que pedirlo aparte.
+
+Solo omitir commit/push si el usuario dice explícitamente que no suba a git, o si no hubo cambios.
+
+## Identidad de commit (si git no tiene user configurado)
+
+Usar variables de entorno en la misma sesión, sin `git config`:
+
+```powershell
+$env:GIT_AUTHOR_NAME="Batery001"
+$env:GIT_COMMITTER_NAME="Batery001"
+$env:GIT_AUTHOR_EMAIL="Batery001@users.noreply.github.com"
+$env:GIT_COMMITTER_EMAIL="Batery001@users.noreply.github.com"
+```
+
+## Recordatorio de despliegue
+
+- **Frontend:** Vercel (lee `vercel.json` en la raíz; build en `client/`).
+- **Backend:** Render u otro host con WebSockets; variables `VITE_API_URL` y `VITE_SOCKET_URL` en Vercel.
+
+Tras el push, indicar brevemente que Vercel debería redesplegar automáticamente.
