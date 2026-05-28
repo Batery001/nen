@@ -5,21 +5,13 @@ import { isMongoConfigured } from "../../lib/db/client.js";
 const sessions = new Map<string, GameSession>();
 const codeToSessionId = new Map<string, string>();
 
-export function usingMongo(): boolean {
-  return isMongoConfigured();
+function normalizeSession(session: GameSession): GameSession {
+  session.code = session.code.toUpperCase().trim();
+  return session;
 }
 
-async function withMongoFallback<T>(
-  operation: () => Promise<T>,
-  fallback: () => T | Promise<T>
-): Promise<T> {
-  if (!usingMongo()) return fallback();
-  try {
-    return await operation();
-  } catch (err) {
-    console.error("MongoDB falló, usando memoria:", err);
-    return fallback();
-  }
+export function usingMongo(): boolean {
+  return isMongoConfigured();
 }
 
 export async function initStore(): Promise<void> {
@@ -32,32 +24,36 @@ export async function initStore(): Promise<void> {
 }
 
 export async function saveSession(session: GameSession): Promise<void> {
-  await withMongoFallback(
-    () => mongo.saveSession(session),
-    async () => {
-      sessions.set(session.id, session);
-      codeToSessionId.set(session.code, session.id);
-    }
-  );
+  normalizeSession(session);
+
+  if (usingMongo()) {
+    await mongo.saveSession(session);
+    return;
+  }
+
+  sessions.set(session.id, session);
+  codeToSessionId.set(session.code, session.id);
 }
 
 export async function getSessionByCode(code: string): Promise<GameSession | undefined> {
-  return withMongoFallback(
-    () => mongo.getSessionByCode(code),
-    async () => {
-      const id = codeToSessionId.get(code.toUpperCase().trim());
-      return id ? sessions.get(id) : undefined;
-    }
-  );
+  const normalized = code.toUpperCase().trim();
+
+  if (usingMongo()) {
+    return mongo.getSessionByCode(normalized);
+  }
+
+  const id = codeToSessionId.get(normalized);
+  return id ? sessions.get(id) : undefined;
 }
 
 export async function deleteSessionIfEmpty(session: GameSession): Promise<void> {
   if (session.participants.length > 0) return;
-  await withMongoFallback(
-    () => mongo.deleteSessionById(session.id),
-    async () => {
-      sessions.delete(session.id);
-      codeToSessionId.delete(session.code);
-    }
-  );
+
+  if (usingMongo()) {
+    await mongo.deleteSessionById(session.id);
+    return;
+  }
+
+  sessions.delete(session.id);
+  codeToSessionId.delete(session.code);
 }

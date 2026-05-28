@@ -54,8 +54,10 @@ export async function createSessionAsMaster(name: string): Promise<JoinResponse>
 }
 
 export async function getSessionByCode(code: string): Promise<SessionSnapshot> {
-  const res = await fetch(apiUrl(`/api/sessions/${encodeURIComponent(code)}`));
-  if (!res.ok) throw new Error(await parseError(res, "Partida no encontrada"));
+  const normalized = code.toUpperCase().trim();
+  const res = await fetch(apiUrl(`/api/sessions/${encodeURIComponent(normalized)}`));
+  if (res.status === 404) throw new Error("Partida no encontrada");
+  if (!res.ok) throw new Error(await parseError(res, "Error al cargar la partida"));
   return readJson(res);
 }
 

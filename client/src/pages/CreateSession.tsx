@@ -31,7 +31,7 @@ export function CreateSession() {
         name: name.trim(),
       });
 
-      navigate(`/partida/${result.session.code}`);
+      navigate(`/partida/${result.session.code}`, { state: { session: result.session } });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error desconocido";
       setError(

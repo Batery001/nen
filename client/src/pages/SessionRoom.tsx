@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { getSessionByCode, leaveSession } from "../api";
 import { ParticipantList } from "../components/ParticipantList";
 import {
@@ -13,10 +13,14 @@ const POLL_MS = 2000;
 
 export function SessionRoom() {
   const { code } = useParams<{ code: string }>();
-  const [session, setSession] = useState<SessionSnapshot | null>(null);
+  const location = useLocation();
+  const initialSession = (location.state as { session?: SessionSnapshot } | null)?.session;
+
+  const [session, setSession] = useState<SessionSnapshot | null>(initialSession ?? null);
   const [stored, setStored] = useState<StoredSession | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [retrying, setRetrying] = useState(!initialSession);
 
   useEffect(() => {
     setStored(loadStoredSession());
@@ -26,6 +30,9 @@ export function SessionRoom() {
     if (!code) return;
 
     let active = true;
+    let attempts = 0;
+    const maxAttempts = 8;
+    const hasInitial = Boolean(initialSession);
 
     async function refresh() {
       try {
@@ -33,9 +40,17 @@ export function SessionRoom() {
         if (active) {
           setSession(data);
           setError(null);
+          setRetrying(false);
         }
-      } catch {
-        if (active) setError("Partida no encontrada");
+      } catch (err) {
+        if (!active) return;
+        attempts += 1;
+        if (attempts < maxAttempts) {
+          if (hasInitial) setRetrying(true);
+        } else {
+          setError(err instanceof Error ? err.message : "Partida no encontrada");
+          setRetrying(false);
+        }
       }
     }
 
@@ -45,7 +60,7 @@ export function SessionRoom() {
       active = false;
       clearInterval(interval);
     };
-  }, [code]);
+  }, [code, initialSession]);
 
   function copyCode() {
     if (!session) return;
@@ -66,10 +81,13 @@ export function SessionRoom() {
     window.location.href = "/";
   }
 
-  if (error) {
+  if (error && !session) {
     return (
       <div className="text-center">
         <p className="text-red-300">{error}</p>
+        <p className="mt-2 text-sm text-[var(--color-mist)]">
+          Comprueba /api/health en Vercel (mongo: connected) y que MONGODB_URI sea correcta.
+        </p>
         <Link to="/" className="mt-4 inline-block text-[var(--color-gold)]">
           Volver al inicio
         </Link>
@@ -78,13 +96,20 @@ export function SessionRoom() {
   }
 
   if (!session) {
-    return <p className="text-center text-[var(--color-mist)]">Cargando partida…</p>;
+    return (
+      <p className="text-center text-[var(--color-mist)]">
+        {retrying ? "Sincronizando partida con el servidor…" : "Cargando partida…"}
+      </p>
+    );
   }
 
   const isYou = stored?.participantId;
 
   return (
     <div className="space-y-6">
+      {retrying && (
+        <p className="text-center text-xs text-amber-400/90">Reconectando con el servidor…</p>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-[var(--color-mist)]">Código de partida</p>
@@ -116,10 +141,7 @@ export function SessionRoom() {
           Conectados ({session.participants.length})
         </h2>
         <div className="mt-4">
-          <ParticipantList
-            participants={session.participants}
-            highlightId={isYou}
-          />
+          <ParticipantList participants={session.participants} highlightId={isYou} />
         </div>
         <p className="mt-3 text-center text-xs text-[var(--color-mist)]">
           La lista se actualiza cada pocos segundos

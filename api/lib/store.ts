@@ -13,54 +13,49 @@ function memoryMaps() {
   return { sessions: memory.__nikuSessions, codes: memory.__nikuCodeIndex };
 }
 
+function normalizeSession(session: GameSession): GameSession {
+  session.code = session.code.toUpperCase().trim();
+  return session;
+}
+
 export function usingMongo(): boolean {
   return isMongoConfigured();
 }
 
-async function withMongoFallback<T>(
-  operation: () => Promise<T>,
-  fallback: () => T | Promise<T>
-): Promise<T> {
-  if (!usingMongo()) return fallback();
-  try {
-    return await operation();
-  } catch (err) {
-    console.error("MongoDB falló, usando memoria temporal:", err);
-    return fallback();
-  }
-}
-
 export async function saveSession(session: GameSession): Promise<void> {
-  await withMongoFallback(
-    () => mongo.saveSession(session),
-    async () => {
-      const { sessions, codes } = memoryMaps();
-      sessions.set(session.id, session);
-      codes.set(session.code, session.id);
-    }
-  );
+  normalizeSession(session);
+
+  if (usingMongo()) {
+    await mongo.saveSession(session);
+    return;
+  }
+
+  const { sessions, codes } = memoryMaps();
+  sessions.set(session.id, session);
+  codes.set(session.code, session.id);
 }
 
 export async function getSessionByCode(code: string): Promise<GameSession | undefined> {
-  return withMongoFallback(
-    () => mongo.getSessionByCode(code),
-    async () => {
-      const normalized = code.toUpperCase().trim();
-      const { sessions, codes } = memoryMaps();
-      const id = codes.get(normalized);
-      return id ? sessions.get(id) : undefined;
-    }
-  );
+  const normalized = code.toUpperCase().trim();
+
+  if (usingMongo()) {
+    return mongo.getSessionByCode(normalized);
+  }
+
+  const { sessions, codes } = memoryMaps();
+  const id = codes.get(normalized);
+  return id ? sessions.get(id) : undefined;
 }
 
 export async function deleteSessionIfEmpty(session: GameSession): Promise<void> {
   if (session.participants.length > 0) return;
-  await withMongoFallback(
-    () => mongo.deleteSessionById(session.id),
-    async () => {
-      const { sessions, codes } = memoryMaps();
-      sessions.delete(session.id);
-      codes.delete(session.code);
-    }
-  );
+
+  if (usingMongo()) {
+    await mongo.deleteSessionById(session.id);
+    return;
+  }
+
+  const { sessions, codes } = memoryMaps();
+  sessions.delete(session.id);
+  codes.delete(session.code);
 }
