@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { leaveSessionData, toSnapshot } from "../../lib/sessions.js";
-import { getSessionByCode, saveSession } from "../../lib/store.js";
+import { deleteSessionIfEmpty, getSessionByCode, saveSession } from "../../lib/store.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const code = req.query.code as string;
@@ -22,6 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   leaveSessionData(session, participantId);
+  await deleteSessionIfEmpty(session);
   if (session.participants.length > 0) {
     await saveSession(session);
     return res.status(200).json(toSnapshot(session));

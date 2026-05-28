@@ -38,7 +38,7 @@ nen/
 └── server/     # Express + Socket.io
 ```
 
-Los datos de sesión viven en memoria (se pierden al reiniciar el servidor). Ideal para prototipo; más adelante se puede persistir en base de datos.
+Las partidas se guardan en **MongoDB Atlas** cuando `MONGODB_URI` está configurada. Sin esa variable, usa memoria (solo desarrollo). Ver [MONGODB.md](./MONGODB.md).
 
 ## Despliegue en Vercel (recomendado)
 
