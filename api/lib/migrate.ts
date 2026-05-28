@@ -8,5 +8,9 @@ export function ensureHubFields(session: GameSession): GameSession {
   if (!session.characters) session.characters = [];
   if (!session.playSessions) session.playSessions = [];
   if (!session.pendingJoinRequests) session.pendingJoinRequests = [];
+  if (!session.visibility) session.visibility = "public";
+  for (const p of session.participants) {
+    if (p.connected === undefined) p.connected = true;
+  }
   return session;
 }

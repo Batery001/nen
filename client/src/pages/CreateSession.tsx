@@ -1,14 +1,32 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { createSessionAsMaster } from "../api";
+import { useAuth } from "../context/AuthContext";
 import { RoleCard } from "../components/RoleCard";
 import { saveStoredSession } from "../hooks/useSessionStorage";
 
 export function CreateSession() {
   const navigate = useNavigate();
-  const [name, setName] = useState("");
+  const { user, loading: authLoading } = useAuth();
+  const [name, setName] = useState(user?.displayName ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (!authLoading && !user) {
+    return (
+      <div className="space-y-4 text-center">
+        <p className="text-[var(--color-mist)]">
+          Necesitas un perfil para crear una campaña y ser su dueño permanente.
+        </p>
+        <Link
+          to="/login"
+          className="inline-block rounded-lg bg-[var(--color-gold)] px-6 py-2.5 font-semibold text-[var(--color-ink)]"
+        >
+          Iniciar sesión
+        </Link>
+      </div>
+    );
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -47,14 +65,15 @@ export function CreateSession() {
   return (
     <form onSubmit={handleCreate} className="space-y-6">
       <div>
-        <h2 className="font-display text-2xl">Crear partida</h2>
+        <h2 className="font-display text-2xl">Crear campaña</h2>
         <p className="mt-2 text-sm text-[var(--color-mist)]">
-          Al crear la partida entrarás automáticamente como master.
+          Serás el <strong className="text-[var(--color-gold)]">dueño</strong> de la campaña.
+          Puedes salir y volver sin perder el master.
         </p>
       </div>
 
       <label className="block">
-        <span className="text-sm font-medium">Tu nombre</span>
+        <span className="text-sm font-medium">Tu nombre en la mesa</span>
         <input
           type="text"
           required
@@ -73,15 +92,13 @@ export function CreateSession() {
           role="master"
           selected
           disabled
-          disabledHint="Serás el master al crear la partida"
+          disabledHint="Dueño de la campaña con acceso total"
           onSelect={() => {}}
         />
       </div>
 
       {error && (
-        <p className="rounded-lg bg-red-950/50 px-4 py-2 text-sm text-red-200">
-          {error}
-        </p>
+        <p className="rounded-lg bg-red-950/50 px-4 py-2 text-sm text-red-200">{error}</p>
       )}
 
       <button

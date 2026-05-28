@@ -1,3 +1,4 @@
+import { loadAuthToken } from "./hooks/useAuthStorage";
 import type {
   CharacterPatch,
   HubMasterPatch,
@@ -6,12 +7,21 @@ import type {
   Role,
   SessionListItem,
   SessionSnapshot,
+  User,
 } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 function apiUrl(path: string): string {
   return API_BASE ? `${API_BASE}${path}` : path;
+}
+
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const token = loadAuthToken();
+  return {
+    ...extra,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
 }
 
 async function readJson<T>(res: Response): Promise<T> {
@@ -41,6 +51,48 @@ async function parseError(res: Response, fallback: string): Promise<string> {
   }
 }
 
+export async function requestLoginCode(
+  email: string,
+  displayName?: string
+): Promise<{ ok: boolean; error?: string; devCode?: string }> {
+  const res = await fetch(apiUrl("/api/auth/request-code"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, displayName }),
+  });
+  return readJson(res);
+}
+
+export async function verifyLoginCode(
+  email: string,
+  code: string
+): Promise<{ ok: boolean; error?: string; token?: string; user?: User }> {
+  const res = await fetch(apiUrl("/api/auth/verify-code"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code }),
+  });
+  return readJson(res);
+}
+
+export async function fetchMe(token?: string): Promise<User> {
+  const t = token ?? loadAuthToken();
+  const res = await fetch(apiUrl("/api/auth/me"), {
+    headers: authHeaders(t ? { Authorization: `Bearer ${t}` } : {}),
+  });
+  if (!res.ok) throw new Error(await parseError(res, "Sesión inválida"));
+  const data = await readJson<{ user: User }>(res);
+  return data.user;
+}
+
+export async function logout(token?: string): Promise<void> {
+  const t = token ?? loadAuthToken();
+  await fetch(apiUrl("/api/auth/logout"), {
+    method: "POST",
+    headers: authHeaders(t ? { Authorization: `Bearer ${t}` } : {}),
+  });
+}
+
 export async function listSessions(): Promise<SessionListItem[]> {
   const res = await fetch(apiUrl("/api/sessions"));
   if (!res.ok) throw new Error(await parseError(res, "No se pudieron cargar las mesas"));
@@ -48,17 +100,30 @@ export async function listSessions(): Promise<SessionListItem[]> {
   return data.sessions ?? [];
 }
 
-export async function createSession(): Promise<SessionSnapshot> {
-  const res = await fetch(apiUrl("/api/sessions"), { method: "POST" });
-  if (!res.ok) throw new Error(await parseError(res, "No se pudo crear la partida"));
-  return readJson(res);
+export async function listMyCampaigns(): Promise<SessionListItem[]> {
+  const res = await fetch(apiUrl("/api/campaigns/mine"), {
+    headers: authHeaders(),
+  });
+  if (res.status === 401) throw new Error("Inicia sesión para ver tus campañas");
+  if (!res.ok) throw new Error(await parseError(res, "No se pudieron cargar tus campañas"));
+  const data = await readJson<{ sessions: SessionListItem[] }>(res);
+  return data.sessions ?? [];
 }
 
-/** Crea la partida y entra como master en una sola petición */
+export async function rejoinCampaign(code: string): Promise<JoinResponse> {
+  const res = await fetch(
+    apiUrl(`/api/sessions/${encodeURIComponent(code.toUpperCase())}/rejoin`),
+    { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }) }
+  );
+  const data = await readJson<JoinResponse>(res);
+  if (!res.ok) throw new Error(data.error ?? "No se pudo reingresar");
+  return data;
+}
+
 export async function createSessionAsMaster(name: string): Promise<JoinResponse> {
   const res = await fetch(apiUrl("/api/sessions"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ name: name.trim(), role: "master" }),
   });
   const data = await readJson<JoinResponse>(res);
@@ -86,7 +151,7 @@ export async function joinSession(payload: {
     apiUrl(`/api/sessions/${encodeURIComponent(payload.code)}/join`),
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         name: payload.name,
         role: payload.role,
@@ -117,7 +182,7 @@ function hubUrl(code: string, participantId: string, path = "hub"): string {
 }
 
 export async function fetchHub(code: string, participantId: string): Promise<HubView> {
-  const res = await fetch(hubUrl(code, participantId));
+  const res = await fetch(hubUrl(code, participantId), { headers: authHeaders() });
   if (!res.ok) throw new Error(await parseError(res, "No se pudo cargar el hub"));
   return readJson(res);
 }
@@ -129,7 +194,7 @@ export async function updateHub(
 ): Promise<HubView> {
   const res = await fetch(hubUrl(code, participantId), {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(patch),
   });
   if (!res.ok) throw new Error(await parseError(res, "No se pudo guardar"));
@@ -164,7 +229,7 @@ export async function resolveJoinRequest(
     ),
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ participantId, action }),
     }
   );
@@ -183,7 +248,7 @@ export async function updateCharacter(
 ): Promise<HubView> {
   const res = await fetch(hubUrl(code, participantId, "hub/character"), {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ targetParticipantId, patch }),
   });
   if (!res.ok) throw new Error(await parseError(res, "No se pudo guardar personaje"));

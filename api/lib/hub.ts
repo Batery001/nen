@@ -5,16 +5,20 @@ import type {
   HubMasterPatch,
   HubView,
   Participant,
-  Role,
 } from "./types.js";
 import { ensureHubFields } from "./migrate.js";
 import { ensurePendingRequests } from "./joinRequests.js";
+import {
+  canAccessHub as membershipCanAccess,
+  canManageCampaign,
+  findParticipantById,
+} from "./membership.js";
 
 export function findParticipant(
   session: GameSession,
   participantId: string
 ): Participant | undefined {
-  return session.participants.find((p) => p.id === participantId);
+  return findParticipantById(session, participantId);
 }
 
 export function ensureCharacter(
@@ -36,10 +40,14 @@ export function ensureCharacter(
   return sheet;
 }
 
-export function buildHubView(session: GameSession, participantId: string): HubView | null {
+export function buildHubView(
+  session: GameSession,
+  participantId: string,
+  userId?: string
+): HubView | null {
   const s = ensureHubFields(session);
   const me = findParticipant(s, participantId);
-  if (!me) return null;
+  if (!me || !membershipCanAccess(s, participantId, userId)) return null;
 
   const base: HubView = {
     code: s.code,
@@ -48,12 +56,13 @@ export function buildHubView(session: GameSession, participantId: string): HubVi
     campaignTitle: s.campaignTitle,
     campaignSummary: s.campaignSummary,
     campaignAudioUrl: s.campaignAudioUrl,
+    isOwner: Boolean(userId && s.ownerUserId === userId),
   };
 
   if (me.role === "master") {
     return {
       ...base,
-      participants: [...s.participants],
+      participants: s.participants.map((p) => ({ ...p })),
       wiki: [...s.wiki],
       playSessions: [...s.playSessions],
       characters: [...s.characters],
@@ -71,7 +80,6 @@ export function buildHubView(session: GameSession, participantId: string): HubVi
     };
   }
 
-  // observador: solo resumen publicado y audio
   return {
     ...base,
     campaignSummary: s.campaignSummary || "Aún no hay resumen publicado.",
@@ -118,11 +126,10 @@ export function applyCharacterPatch(
   return { ok: true, character: sheet };
 }
 
-export function canAccessHub(session: GameSession, participantId: string): boolean {
-  return Boolean(findParticipant(session, participantId));
-}
-
-export function requireMaster(session: GameSession, participantId: string): boolean {
-  const p = findParticipant(session, participantId);
-  return p?.role === "master";
+export function requireMaster(
+  session: GameSession,
+  participantId: string | undefined,
+  userId?: string
+): boolean {
+  return canManageCampaign(session, participantId, userId);
 }

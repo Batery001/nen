@@ -23,11 +23,11 @@ export async function deleteSessionById(id: string): Promise<void> {
   await db.collection(COLLECTION).deleteOne({ id });
 }
 
-export async function listSessions(): Promise<GameSession[]> {
+export async function listSessions(filter: Record<string, unknown> = {}): Promise<GameSession[]> {
   const db = await getDb();
   return db
     .collection<GameSession>(COLLECTION)
-    .find({})
+    .find(filter)
     .sort({ createdAt: -1 })
     .toArray();
 }

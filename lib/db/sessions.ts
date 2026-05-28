@@ -21,6 +21,17 @@ export async function deleteSessionById(id: string): Promise<void> {
   await db.collection(COLLECTION).deleteOne({ id });
 }
 
+export async function listSessions(
+  filter: Record<string, unknown> = {}
+): Promise<GameSession[]> {
+  const db = await getDb();
+  return db
+    .collection<GameSession>(COLLECTION)
+    .find(filter)
+    .sort({ createdAt: -1 })
+    .toArray();
+}
+
 export async function ensureIndexes(): Promise<void> {
   const db = await getDb();
   await db.collection(COLLECTION).createIndex({ code: 1 }, { unique: true });

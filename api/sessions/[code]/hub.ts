@@ -7,6 +7,8 @@ import {
 } from "../../lib/hub.js";
 import { ensureHubFields } from "../../lib/migrate.js";
 import type { CharacterPatch, HubMasterPatch } from "../../lib/types.js";
+import { getUserFromRequest } from "../../lib/requestAuth.js";
+import { reconnectParticipant } from "../../lib/membership.js";
 import { getSessionByCode, saveSession } from "../../lib/store.js";
 
 function parseBody<T>(req: VercelRequest): T {
@@ -30,20 +32,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const session = await getSessionByCode(code);
     if (!session) return res.status(404).json({ error: "Partida no encontrada" });
 
-    const hub = buildHubView(ensureHubFields(session), participantId);
+    const user = await getUserFromRequest(req);
+    const hub = buildHubView(ensureHubFields(session), participantId, user?.id);
     if (!hub) return res.status(403).json({ error: "No estás en esta mesa" });
 
     if (req.method === "GET") {
-      return res.status(200).json(hub);
+      const me = session.participants.find((p) => p.id === participantId);
+      if (me) {
+        reconnectParticipant(me);
+        await saveSession(session);
+      }
+      const fresh = buildHubView(session, participantId, user?.id);
+      return res.status(200).json(fresh);
     }
 
     if (req.method === "PATCH") {
-      if (!requireMaster(session, participantId)) {
+      if (!requireMaster(session, participantId, user?.id)) {
         return res.status(403).json({ error: "Solo el master puede editar la campaña" });
       }
       applyMasterPatch(session, parseBody<HubMasterPatch>(req));
       await saveSession(session);
-      const updated = buildHubView(session, participantId);
+      const updated = buildHubView(session, participantId, user?.id);
       return res.status(200).json(updated);
     }
 
@@ -58,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       if (!result.ok) return res.status(403).json({ error: result.error });
       await saveSession(session);
-      const updated = buildHubView(session, participantId);
+      const updated = buildHubView(session, participantId, user?.id);
       return res.status(200).json(updated);
     }
 

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getUserFromRequest } from "../../lib/requestAuth.js";
-import { joinSessionData } from "../../lib/sessions.js";
-import type { JoinRequest } from "../../lib/types.js";
+import { rejoinCampaign } from "../../lib/sessions.js";
+import { reconnectParticipant } from "../../lib/membership.js";
 import { getSessionByCode, saveSession } from "../../lib/store.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -13,23 +13,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Método no permitido" });
   }
 
+  const user = await getUserFromRequest(req);
+  if (!user) {
+    return res.status(401).json({ ok: false, error: "Inicia sesión para reingresar" });
+  }
+
   try {
     const session = await getSessionByCode(code);
     if (!session) {
       return res.status(404).json({ ok: false, error: "Partida no encontrada" });
     }
 
-    const user = await getUserFromRequest(req);
-    const body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as JoinRequest;
-    const result = joinSessionData(session, {
-      ...body,
-      userId: body.userId ?? user?.id,
-    });
-    if (result.ok && (result.you || result.pending)) await saveSession(session);
-    return res.status(result.ok ? 200 : 400).json(result);
+    const result = rejoinCampaign(session, user.id, user.displayName);
+    if (!result.ok) {
+      return res.status(403).json(result);
+    }
+
+    const me = session.participants.find((p) => p.id === result.you?.participantId);
+    if (me) reconnectParticipant(me);
+
+    await saveSession(session);
+    return res.status(200).json(result);
   } catch (err) {
-    console.error("POST /api/sessions/:code/join", err);
-    const message = err instanceof Error ? err.message : "Error al unirse";
-    return res.status(500).json({ ok: false, error: message });
+    console.error("rejoin", err);
+    return res.status(500).json({ ok: false, error: "Error al reingresar" });
   }
 }

@@ -1,16 +1,18 @@
 /**
- * POST /api/sessions — archivo en raíz de /api para máxima compatibilidad con Vercel
+ * GET /api/sessions — mesas públicas
+ * POST /api/sessions — crear campaña (requiere login si entras como master)
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createSessionData, joinSessionData, toSnapshot } from "./lib/sessions.js";
+import { ensureOwnerParticipant } from "./lib/membership.js";
+import { getUserFromRequest } from "./lib/requestAuth.js";
+import { createSessionData, toSnapshot } from "./lib/sessions.js";
 import type { JoinRequest } from "./lib/types.js";
-import { getSessionByCode, saveSession, usingMongo } from "./lib/store.js";
+import { getSessionByCode, listSessionItems, saveSession, usingMongo } from "./lib/store.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET") {
     try {
-      const { listSessionItems } = await import("./lib/store.js");
-      const items = await listSessionItems();
+      const items = await listSessionItems({ visibility: "public" });
       return res.status(200).json({ sessions: items });
     } catch (err) {
       console.error("GET /api/sessions", err);
@@ -25,24 +27,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    let session = createSessionData();
-    while (await getSessionByCode(session.code)) {
-      session = createSessionData();
-    }
-
+    const user = await getUserFromRequest(req);
     const body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as JoinRequest;
     const name = body?.name?.trim();
 
     if (name) {
-      const result = joinSessionData(session, {
-        name,
-        role: body.role ?? "master",
-        sessionId: session.id,
-      });
-      if (!result.ok) {
-        return res.status(400).json(result);
+      if (!user) {
+        return res.status(401).json({
+          ok: false,
+          error: "Inicia sesión para crear una campaña",
+        });
       }
+
+      let session = createSessionData(user.id);
+      while (await getSessionByCode(session.code)) {
+        session = createSessionData(user.id);
+      }
+
+      const participant = ensureOwnerParticipant(session, user.id, name);
       await saveSession(session);
+
       const saved = await getSessionByCode(session.code);
       if (!saved) {
         return res.status(500).json({
@@ -50,7 +54,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           error: "No se pudo guardar la partida en MongoDB. Revisa MONGODB_URI y Network Access (0.0.0.0/0).",
         });
       }
-      return res.status(201).json(result);
+
+      return res.status(201).json({
+        ok: true,
+        session: toSnapshot(session),
+        you: { participantId: participant.id, role: "master" as const },
+      });
+    }
+
+    let session = createSessionData(user?.id);
+    while (await getSessionByCode(session.code)) {
+      session = createSessionData(user?.id);
     }
 
     await saveSession(session);

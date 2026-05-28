@@ -1,5 +1,27 @@
 export type Role = "master" | "player" | "observer";
 
+export type CampaignVisibility = "public" | "unlisted" | "private";
+
+export interface User {
+  id: string;
+  email: string;
+  displayName: string;
+  createdAt: string;
+}
+
+export interface AuthCode {
+  email: string;
+  code: string;
+  expiresAt: string;
+  displayName?: string;
+}
+
+export interface AuthSession {
+  token: string;
+  userId: string;
+  expiresAt: string;
+}
+
 export type WikiEntryType = "location" | "item" | "npc" | "note";
 
 export interface Participant {
@@ -7,6 +29,10 @@ export interface Participant {
   name: string;
   role: Role;
   connectedAt: string;
+  connected?: boolean;
+  disconnectedAt?: string;
+  userId?: string;
+  isOwner?: boolean;
 }
 
 export interface CharacterSheet {
@@ -41,8 +67,8 @@ export interface PendingJoinRequest {
   requestedAt: string;
   status: "pending" | "approved" | "rejected";
   resolvedAt?: string;
-  /** Tras aprobar, id del participante creado */
   participantId?: string;
+  userId?: string;
 }
 
 export interface GameSession {
@@ -57,6 +83,8 @@ export interface GameSession {
   characters: CharacterSheet[];
   playSessions: PlaySessionRecord[];
   pendingJoinRequests?: PendingJoinRequest[];
+  ownerUserId?: string;
+  visibility?: CampaignVisibility;
 }
 
 export interface SessionListItem {
@@ -65,7 +93,11 @@ export interface SessionListItem {
   campaignTitle: string;
   createdAt: string;
   participantCount: number;
+  connectedCount: number;
   pendingPlayerRequests: number;
+  visibility: CampaignVisibility;
+  isOwner?: boolean;
+  myRole?: Role;
 }
 
 export interface SessionSnapshot {
@@ -84,6 +116,7 @@ export interface JoinRequest {
   name: string;
   role: Role;
   sessionId?: string;
+  userId?: string;
 }
 
 export interface JoinResponse {
@@ -110,6 +143,7 @@ export interface HubView {
   myCharacter?: CharacterSheet;
   characters?: CharacterSheet[];
   pendingJoinRequests?: PendingJoinRequest[];
+  isOwner?: boolean;
 }
 
 export interface HubMasterPatch {

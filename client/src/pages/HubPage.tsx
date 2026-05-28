@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { fetchHub, leaveSession, resolveJoinRequest, updateCharacter, updateHub } from "../api";
-import { loadStoredSession, clearStoredSession } from "../hooks/useSessionStorage";
+import {
+  fetchHub,
+  leaveSession,
+  rejoinCampaign,
+  resolveJoinRequest,
+  updateCharacter,
+  updateHub,
+} from "../api";
+import { useAuth } from "../context/AuthContext";
+import { loadStoredSession, clearStoredSession, saveStoredSession } from "../hooks/useSessionStorage";
 import {
   ROLE_LABELS,
   WIKI_TYPE_LABELS,
@@ -471,6 +479,7 @@ function ObserverHub({ hub }: { hub: HubView }) {
 
 export function HubPage() {
   const { code } = useParams<{ code: string }>();
+  const { user } = useAuth();
   const [hub, setHub] = useState<HubView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -483,9 +492,29 @@ export function HubPage() {
       setHub(data);
       setError(null);
     } catch (e) {
+      if (user) {
+        try {
+          const result = await rejoinCampaign(code);
+          if (result.ok && result.you && result.session) {
+            saveStoredSession({
+              sessionId: result.session.id,
+              code: result.session.code,
+              participantId: result.you.participantId,
+              role: result.you.role,
+              name: user.displayName,
+            });
+            const data = await fetchHub(code, result.you.participantId);
+            setHub(data);
+            setError(null);
+            return;
+          }
+        } catch {
+          /* fall through */
+        }
+      }
       setError(e instanceof Error ? e.message : "Error al cargar");
     }
-  }, [code, stored]);
+  }, [code, stored, user]);
 
   useEffect(() => {
     load();
@@ -516,11 +545,22 @@ export function HubPage() {
 
   if (error) {
     return (
-      <div className="text-center">
+      <div className="space-y-4 text-center">
         <p className="text-red-300">{error}</p>
-        <Link to="/" className="mt-4 inline-block text-[var(--color-gold)]">
-          Inicio
-        </Link>
+        {user ? (
+          <Link to="/" className="inline-block text-[var(--color-gold)]">
+            Ir a Mis campañas para reingresar
+          </Link>
+        ) : (
+          <>
+            <Link to="/login" className="block text-[var(--color-gold)]">
+              Iniciar sesión
+            </Link>
+            <Link to="/" className="block text-sm text-[var(--color-mist)]">
+              Inicio
+            </Link>
+          </>
+        )}
       </div>
     );
   }
@@ -537,14 +577,16 @@ export function HubPage() {
           <h1 className="font-display text-2xl text-[var(--color-gold)]">{hub.campaignTitle}</h1>
           <p className="text-sm text-[var(--color-mist)]">
             Tú: {stored.name} · {ROLE_LABELS[hub.role]}
+            {hub.isOwner && " · Dueño"}
           </p>
         </div>
         <button
           type="button"
           onClick={handleLeave}
           className="rounded-lg border border-[var(--color-slate-border)] px-4 py-2 text-sm"
+          title="Te desconectas pero conservas tu rol si eres dueño o jugador"
         >
-          Salir
+          Desconectar
         </button>
       </div>
 

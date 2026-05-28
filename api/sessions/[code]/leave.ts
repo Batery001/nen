@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { leaveSessionData, toSnapshot } from "../../lib/sessions.js";
+import { campaignShouldPersist } from "../../lib/membership.js";
 import { deleteSessionIfEmpty, getSessionByCode, saveSession } from "../../lib/store.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -23,12 +24,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     leaveSessionData(session, participantId);
-    await deleteSessionIfEmpty(session);
-    if (session.participants.length > 0) {
-      await saveSession(session);
-      return res.status(200).json(toSnapshot(session));
+    await saveSession(session);
+    if (!campaignShouldPersist(session) && session.participants.length === 0) {
+      await deleteSessionIfEmpty(session);
+      return res.status(200).json({ ok: true, removed: true, disconnected: true });
     }
-    return res.status(200).json({ ok: true, removed: true });
+    return res.status(200).json({
+      ok: true,
+      disconnected: true,
+      session: toSnapshot(session),
+    });
   } catch (err) {
     console.error("POST /api/sessions/:code/leave", err);
     const message = err instanceof Error ? err.message : "Error al salir";

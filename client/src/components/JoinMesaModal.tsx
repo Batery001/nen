@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { joinSession } from "../api";
+import { useAuth } from "../context/AuthContext";
 import { savePendingRequest } from "../hooks/usePendingStorage";
 import { saveStoredSession } from "../hooks/useSessionStorage";
 import type { SessionListItem } from "../types";
@@ -12,7 +13,8 @@ interface JoinMesaModalProps {
 
 export function JoinMesaModal({ mesa, onClose }: JoinMesaModalProps) {
   const navigate = useNavigate();
-  const [name, setName] = useState("");
+  const { user } = useAuth();
+  const [name, setName] = useState(user?.displayName ?? "");
   const [loading, setLoading] = useState<"observer" | "player" | null>(null);
   const [error, setError] = useState<string | null>(null);
 

@@ -1,5 +1,6 @@
 import type { GameSession, JoinResponse, PendingJoinRequest } from "./types.js";
 import { ensureHubFields } from "./migrate.js";
+import { findParticipantByUserId, reconnectParticipant } from "./membership.js";
 import { addParticipant, toSnapshot } from "./sessions.js";
 
 export function ensurePendingRequests(session: GameSession): PendingJoinRequest[] {
@@ -10,7 +11,8 @@ export function ensurePendingRequests(session: GameSession): PendingJoinRequest[
 
 export function createPlayerJoinRequest(
   session: GameSession,
-  name: string
+  name: string,
+  userId?: string
 ): JoinResponse {
   const s = ensureHubFields(session);
   const trimmed = name.trim();
@@ -18,9 +20,25 @@ export function createPlayerJoinRequest(
     return { ok: false, error: "El nombre debe tener al menos 2 caracteres" };
   }
 
+  if (userId) {
+    const existing = findParticipantByUserId(s, userId);
+    if (existing?.role === "player") {
+      existing.name = trimmed;
+      reconnectParticipant(existing);
+      return {
+        ok: true,
+        session: toSnapshot(s),
+        you: { participantId: existing.id, role: "player" },
+      };
+    }
+  }
+
   const pending = ensurePendingRequests(s);
   const alreadyPlayer = s.participants.some(
-    (p) => p.role === "player" && p.name.toLowerCase() === trimmed.toLowerCase()
+    (p) =>
+      p.role === "player" &&
+      p.name.toLowerCase() === trimmed.toLowerCase() &&
+      (!userId || p.userId !== userId)
   );
   if (alreadyPlayer) {
     return { ok: false, error: "Ya hay un jugador con ese nombre en la mesa" };
@@ -28,7 +46,9 @@ export function createPlayerJoinRequest(
 
   const duplicatePending = pending.find(
     (r) =>
-      r.status === "pending" && r.name.toLowerCase() === trimmed.toLowerCase()
+      r.status === "pending" &&
+      r.name.toLowerCase() === trimmed.toLowerCase() &&
+      (!userId || r.userId === userId)
   );
   if (duplicatePending) {
     return {
@@ -44,6 +64,7 @@ export function createPlayerJoinRequest(
     name: trimmed,
     requestedAt: new Date().toISOString(),
     status: "pending",
+    userId,
   };
   pending.push(request);
 
@@ -108,7 +129,7 @@ export function resolveJoinRequest(
     return { ok: true, session: toSnapshot(s) };
   }
 
-  const joinResult = addParticipant(s, request.name, "player");
+  const joinResult = addParticipant(s, request.name, "player", { userId: request.userId });
   if (!joinResult.ok || !joinResult.you) {
     return joinResult;
   }

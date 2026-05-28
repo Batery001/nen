@@ -4,6 +4,7 @@ import {
   resolveJoinRequest,
 } from "../../../lib/joinRequests.js";
 import { requireMaster } from "../../../lib/hub.js";
+import { getUserFromRequest } from "../../../lib/requestAuth.js";
 import { getSessionByCode, saveSession } from "../../../lib/store.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -36,7 +37,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!participantId || !action) {
         return res.status(400).json({ error: "participantId y action requeridos" });
       }
-      if (!requireMaster(session, participantId)) {
+      const user = await getUserFromRequest(req);
+      if (!requireMaster(session, participantId, user?.id)) {
         return res.status(403).json({ ok: false, error: "Solo el master puede gestionar solicitudes" });
       }
 

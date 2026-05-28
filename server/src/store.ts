@@ -1,5 +1,5 @@
-import type { GameSession, SessionListItem } from "../../lib/types.js";
-import { toListItem } from "./lib/sessions.js";
+import type { GameSession, SessionListItem } from "../../api/lib/types.js";
+import { toListItem } from "../../api/lib/sessions.js";
 import * as mongo from "../../lib/db/sessions.js";
 import { isMongoConfigured } from "../../lib/db/client.js";
 
@@ -47,18 +47,44 @@ export async function getSessionByCode(code: string): Promise<GameSession | unde
   return id ? sessions.get(id) : undefined;
 }
 
-export async function listSessionItems(): Promise<SessionListItem[]> {
+export async function listSessionItems(options?: {
+  visibility?: "public";
+  memberUserId?: string;
+}): Promise<SessionListItem[]> {
+  const viewerId = options?.memberUserId;
+
   if (usingMongo()) {
-    const all = await mongo.listSessions();
-    return all.map((s) => toListItem(s));
+    const filter: Record<string, unknown> = {};
+    if (options?.visibility) filter.visibility = options.visibility;
+    if (viewerId) {
+      filter.$or = [
+        { ownerUserId: viewerId },
+        { participants: { $elemMatch: { userId: viewerId } } },
+      ];
+    }
+    const all = await mongo.listSessions(filter);
+    return all.map((s) => toListItem(s, viewerId));
   }
 
-  return [...sessions.values()]
+  let list = [...sessions.values()];
+  if (options?.visibility) {
+    list = list.filter((s) => (s.visibility ?? "public") === options.visibility);
+  }
+  if (viewerId) {
+    list = list.filter(
+      (s) =>
+        s.ownerUserId === viewerId ||
+        s.participants.some((p) => p.userId === viewerId)
+    );
+  }
+  return list
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .map((s) => toListItem(s));
+    .map((s) => toListItem(s, viewerId));
 }
 
 export async function deleteSessionIfEmpty(session: GameSession): Promise<void> {
+  const { campaignShouldPersist } = await import("../../api/lib/membership.js");
+  if (campaignShouldPersist(session)) return;
   if (session.participants.length > 0) return;
 
   if (usingMongo()) {

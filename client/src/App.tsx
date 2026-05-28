@@ -4,6 +4,7 @@ import { CreateSession } from "./pages/CreateSession";
 import { Home } from "./pages/Home";
 import { JoinSession } from "./pages/JoinSession";
 import { HubPage } from "./pages/HubPage";
+import { LoginPage } from "./pages/LoginPage";
 import { WaitingApprovalPage } from "./pages/WaitingApprovalPage";
 
 export function App() {
@@ -12,6 +13,7 @@ export function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/login" element={<LoginPage />} />
           <Route path="/crear" element={<CreateSession />} />
           <Route path="/unirse" element={<JoinSession />} />
           <Route path="/espera/:code" element={<WaitingApprovalPage />} />

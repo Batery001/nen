@@ -1,5 +1,14 @@
 export type Role = "master" | "player" | "observer";
 
+export type CampaignVisibility = "public" | "unlisted" | "private";
+
+export interface User {
+  id: string;
+  email: string;
+  displayName: string;
+  createdAt: string;
+}
+
 export type WikiEntryType = "location" | "item" | "npc" | "note";
 
 export interface Participant {
@@ -49,7 +58,11 @@ export interface SessionListItem {
   campaignTitle: string;
   createdAt: string;
   participantCount: number;
+  connectedCount: number;
   pendingPlayerRequests: number;
+  visibility: CampaignVisibility;
+  isOwner?: boolean;
+  myRole?: Role;
 }
 
 export interface SessionSnapshot {
@@ -86,6 +99,7 @@ export interface HubView {
   myCharacter?: CharacterSheet;
   characters?: CharacterSheet[];
   pendingJoinRequests?: PendingJoinRequest[];
+  isOwner?: boolean;
 }
 
 export interface HubMasterPatch {
