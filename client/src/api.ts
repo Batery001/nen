@@ -21,6 +21,20 @@ export async function createSession(): Promise<SessionSnapshot> {
   return res.json();
 }
 
+/** Crea la partida y entra como master en una sola petición */
+export async function createSessionAsMaster(name: string): Promise<JoinResponse> {
+  const res = await fetch(apiUrl("/api/sessions"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: name.trim(), role: "master" }),
+  });
+  const data = (await res.json()) as JoinResponse;
+  if (!res.ok) {
+    throw new Error(data.error ?? (await parseError(res, "No se pudo crear la partida")));
+  }
+  return data;
+}
+
 export async function getSessionByCode(code: string): Promise<SessionSnapshot> {
   const res = await fetch(apiUrl(`/api/sessions/${encodeURIComponent(code)}`));
   if (!res.ok) throw new Error(await parseError(res, "Partida no encontrada"));

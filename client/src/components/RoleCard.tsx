@@ -11,10 +11,18 @@ interface RoleCardProps {
   role: Role;
   selected: boolean;
   disabled?: boolean;
+  /** Texto cuando está deshabilitado (si no se pasa, no muestra aviso rojo) */
+  disabledHint?: string;
   onSelect: () => void;
 }
 
-export function RoleCard({ role, selected, disabled, onSelect }: RoleCardProps) {
+export function RoleCard({
+  role,
+  selected,
+  disabled,
+  disabledHint,
+  onSelect,
+}: RoleCardProps) {
   return (
     <button
       type="button"
@@ -39,10 +47,8 @@ export function RoleCard({ role, selected, disabled, onSelect }: RoleCardProps) 
           <p className="mt-1 text-sm text-[var(--color-mist)]">
             {ROLE_DESCRIPTIONS[role]}
           </p>
-          {disabled && role === "master" && (
-            <p className="mt-2 text-xs text-[var(--color-ember)]">
-              Ya hay un master en esta partida
-            </p>
+          {disabled && disabledHint && (
+            <p className="mt-2 text-xs text-[var(--color-ember)]">{disabledHint}</p>
           )}
         </div>
       </div>

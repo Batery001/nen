@@ -121,7 +121,14 @@ export function JoinSession() {
               key={r}
               role={r}
               selected={role === r}
-              disabled={r === "master" && preview !== null && !preview.rolesAvailable.master}
+              disabled={
+                r === "master" && preview !== null && !preview.rolesAvailable.master
+              }
+              disabledHint={
+                r === "master" && preview !== null && !preview.rolesAvailable.master
+                  ? "Ya hay un master en esta partida"
+                  : undefined
+              }
               onSelect={() => setRole(r)}
             />
           ))}

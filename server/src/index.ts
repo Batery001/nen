@@ -63,17 +63,37 @@ app.get("/health", async (_req, res) => {
   });
 });
 
-app.post("/api/sessions", async (_req, res) => {
+app.post("/api/sessions", async (req, res) => {
   try {
     let session = createSessionData();
     while (await getSessionByCode(session.code)) {
       session = createSessionData();
     }
+
+    const body = req.body as JoinRequest;
+    const name = body?.name?.trim();
+
+    if (name) {
+      const result = joinSessionData(session, {
+        name,
+        role: body.role ?? "master",
+        sessionId: session.id,
+      });
+      if (!result.ok) {
+        res.status(400).json(result);
+        return;
+      }
+      await saveSession(session);
+      res.status(201).json(result);
+      return;
+    }
+
     await saveSession(session);
     res.status(201).json(toSnapshot(session));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error al crear la partida" });
+    const message = err instanceof Error ? err.message : "Error al crear la partida";
+    res.status(500).json({ ok: false, error: message });
   }
 });
 

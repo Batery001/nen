@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createSession } from "../api";
+import { createSessionAsMaster } from "../api";
 import { RoleCard } from "../components/RoleCard";
-import { joinSession } from "../api";
 import { saveStoredSession } from "../hooks/useSessionStorage";
 
 export function CreateSession() {
@@ -17,16 +16,10 @@ export function CreateSession() {
     setLoading(true);
 
     try {
-      const session = await createSession();
-      const result = await joinSession({
-        code: session.code,
-        sessionId: session.id,
-        name: name.trim(),
-        role: "master",
-      });
+      const result = await createSessionAsMaster(name.trim());
 
       if (!result.ok || !result.session || !result.you) {
-        setError(result.error ?? "Error al conectar");
+        setError(result.error ?? "Error al crear la partida");
         return;
       }
 
@@ -42,9 +35,9 @@ export function CreateSession() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error desconocido";
       setError(
-        msg.includes("MONGODB") || msg.includes("mongo")
+        msg.includes("MONGODB") || msg.includes("mongo") || msg.includes("querySrv")
           ? `${msg}. Revisa MONGODB_URI en Vercel y Network Access en Atlas (0.0.0.0/0).`
-          : msg || "No se pudo crear la partida. ¿Está el servidor en marcha?"
+          : msg || "No se pudo crear la partida"
       );
     } finally {
       setLoading(false);
@@ -76,7 +69,13 @@ export function CreateSession() {
 
       <div>
         <p className="mb-2 text-sm font-medium">Tu rol</p>
-        <RoleCard role="master" selected disabled onSelect={() => {}} />
+        <RoleCard
+          role="master"
+          selected
+          disabled
+          disabledHint="Serás el master al crear la partida"
+          onSelect={() => {}}
+        />
       </div>
 
       {error && (

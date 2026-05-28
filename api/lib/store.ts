@@ -17,33 +17,50 @@ export function usingMongo(): boolean {
   return isMongoConfigured();
 }
 
-export async function saveSession(session: GameSession): Promise<void> {
-  if (usingMongo()) {
-    await mongo.saveSession(session);
-    return;
+async function withMongoFallback<T>(
+  operation: () => Promise<T>,
+  fallback: () => T | Promise<T>
+): Promise<T> {
+  if (!usingMongo()) return fallback();
+  try {
+    return await operation();
+  } catch (err) {
+    console.error("MongoDB falló, usando memoria temporal:", err);
+    return fallback();
   }
-  const { sessions, codes } = memoryMaps();
-  sessions.set(session.id, session);
-  codes.set(session.code, session.id);
+}
+
+export async function saveSession(session: GameSession): Promise<void> {
+  await withMongoFallback(
+    () => mongo.saveSession(session),
+    async () => {
+      const { sessions, codes } = memoryMaps();
+      sessions.set(session.id, session);
+      codes.set(session.code, session.id);
+    }
+  );
 }
 
 export async function getSessionByCode(code: string): Promise<GameSession | undefined> {
-  if (usingMongo()) {
-    return mongo.getSessionByCode(code);
-  }
-  const normalized = code.toUpperCase().trim();
-  const { sessions, codes } = memoryMaps();
-  const id = codes.get(normalized);
-  return id ? sessions.get(id) : undefined;
+  return withMongoFallback(
+    () => mongo.getSessionByCode(code),
+    async () => {
+      const normalized = code.toUpperCase().trim();
+      const { sessions, codes } = memoryMaps();
+      const id = codes.get(normalized);
+      return id ? sessions.get(id) : undefined;
+    }
+  );
 }
 
 export async function deleteSessionIfEmpty(session: GameSession): Promise<void> {
   if (session.participants.length > 0) return;
-  if (usingMongo()) {
-    await mongo.deleteSessionById(session.id);
-    return;
-  }
-  const { sessions, codes } = memoryMaps();
-  sessions.delete(session.id);
-  codes.delete(session.code);
+  await withMongoFallback(
+    () => mongo.deleteSessionById(session.id),
+    async () => {
+      const { sessions, codes } = memoryMaps();
+      sessions.delete(session.id);
+      codes.delete(session.code);
+    }
+  );
 }
