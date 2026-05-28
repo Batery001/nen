@@ -132,7 +132,7 @@ app.get("/api/campaigns/mine", async (req, res) => {
 
 app.get("/api/sessions", async (_req, res) => {
   try {
-    const sessions = await listSessionItems({ visibility: "public" });
+    const sessions = await listSessionItems({ explore: true });
     res.json({ sessions });
   } catch (err) {
     console.error(err);

@@ -53,7 +53,7 @@ export function createSessionData(ownerUserId?: string): GameSession {
     characters: [],
     playSessions: [],
     ownerUserId,
-    visibility: "unlisted",
+    visibility: "public",
   });
 }
 

@@ -64,26 +64,32 @@ export function Home() {
   const [mine, setMine] = useState<SessionListItem[]>([]);
   const [publicMesas, setPublicMesas] = useState<SessionListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [publicError, setPublicError] = useState<string | null>(null);
+  const [mineError, setMineError] = useState<string | null>(null);
   const [selectedMesa, setSelectedMesa] = useState<SessionListItem | null>(null);
   const [rejoining, setRejoining] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setPublicError(null);
+    setMineError(null);
     try {
       const pub = await listSessions();
       setPublicMesas(pub);
-      if (user) {
+    } catch (e) {
+      setPublicMesas([]);
+      setPublicError(e instanceof Error ? e.message : "Error al cargar mesas");
+    }
+    if (user) {
+      try {
         const owned = await listMyCampaigns();
         setMine(owned);
-      } else {
-        setMine([]);
+      } catch (e) {
+        setMineError(e instanceof Error ? e.message : "Error al cargar tus campañas");
       }
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al cargar");
-    } finally {
-      setLoading(false);
+    } else {
+      setMine([]);
     }
+    setLoading(false);
   }, [user]);
 
   useEffect(() => {
@@ -180,18 +186,21 @@ export function Home() {
 
       <section className="space-y-3">
         <h3 className="font-display text-lg text-[var(--color-parchment)]">
-          Campañas públicas
+          Explorar campañas
         </h3>
         {loading && (
           <p className="text-center text-sm text-[var(--color-mist)]">Cargando…</p>
         )}
-        {error && (
-          <p className="rounded-lg bg-red-950/50 px-4 py-2 text-center text-sm text-red-200">
-            {error}
+        {mineError && (
+          <p className="rounded-lg bg-red-950/50 px-4 py-2 text-sm text-red-200">{mineError}</p>
+        )}
+        {publicError && (
+          <p className="rounded-lg bg-red-950/50 px-4 py-2 text-sm text-red-200">
+            {publicError}
           </p>
         )}
-        {!loading && publicMesas.length === 0 && (
-          <p className="text-sm text-[var(--color-mist)]">No hay campañas públicas ahora.</p>
+        {!loading && !publicError && publicMesas.length === 0 && (
+          <p className="text-sm text-[var(--color-mist)]">No hay campañas para explorar aún.</p>
         )}
         <ul className="grid gap-3 sm:grid-cols-2">
           {publicMesas.map((mesa) => (

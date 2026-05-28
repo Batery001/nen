@@ -49,6 +49,7 @@ export async function getSessionByCode(code: string): Promise<GameSession | unde
 
 export async function listSessionItems(options?: {
   visibility?: "public";
+  explore?: boolean;
   memberUserId?: string;
 }): Promise<SessionListItem[]> {
   const viewerId = options?.memberUserId;
@@ -56,6 +57,7 @@ export async function listSessionItems(options?: {
   if (usingMongo()) {
     const filter: Record<string, unknown> = {};
     if (options?.visibility) filter.visibility = options.visibility;
+    if (options?.explore) filter.visibility = { $ne: "private" };
     if (viewerId) {
       filter.$or = [
         { ownerUserId: viewerId },
@@ -69,6 +71,9 @@ export async function listSessionItems(options?: {
   let list = [...sessions.values()];
   if (options?.visibility) {
     list = list.filter((s) => (s.visibility ?? "public") === options.visibility);
+  }
+  if (options?.explore) {
+    list = list.filter((s) => (s.visibility ?? "public") !== "private");
   }
   if (viewerId) {
     list = list.filter(

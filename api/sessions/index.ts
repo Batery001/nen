@@ -1,13 +1,13 @@
 /**
- * GET /api/sessions — mesas públicas
- * POST /api/sessions — crear campaña (requiere login si entras como master)
+ * GET /api/sessions — explorar mesas (?mine=1 para las tuyas)
+ * POST /api/sessions — crear campaña
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { ensureOwnerParticipant } from "./lib/membership.js";
-import { getUserFromRequest } from "./lib/requestAuth.js";
-import { createSessionData, toSnapshot } from "./lib/sessions.js";
-import type { JoinRequest } from "./lib/types.js";
-import { getSessionByCode, listSessionItems, saveSession, usingMongo } from "./lib/store.js";
+import { ensureOwnerParticipant } from "../lib/membership.js";
+import { getUserFromRequest } from "../lib/requestAuth.js";
+import { createSessionData, toSnapshot } from "../lib/sessions.js";
+import type { JoinRequest } from "../lib/types.js";
+import { getSessionByCode, listSessionItems, saveSession, usingMongo } from "../lib/store.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET") {
@@ -24,7 +24,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const items = await listSessionItems({ memberUserId: user.id });
         return res.status(200).json({ sessions: items });
       }
-      const items = await listSessionItems({ visibility: "public" });
+      // Explorar: todas excepto privadas (public + unlisted + legacy sin visibility)
+      const items = await listSessionItems({ explore: true });
       return res.status(200).json({ sessions: items });
     } catch (err) {
       console.error("GET /api/sessions", err);
