@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Cinzel", serif;
+  --font-body: "Source Sans 3", system-ui, sans-serif;
+  --color-ink: #0f0e12;
+  --color-parchment: #f4efe4;
+  --color-gold: #c9a227;
+  --color-gold-dim: #8a7120;
+  --color-ember: #b84a32;
+  --color-mist: #6b7a8f;
+  --color-slate-panel: #1a1822;
+  --color-slate-border: #2e2a3a;
+}
+
+body {
+  font-family: var(--font-body);
+  background: radial-gradient(ellipse at top, #1f1a28 0%, var(--color-ink) 55%);
+  color: var(--color-parchment);
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
