@@ -1,7 +1,10 @@
+/**
+ * POST /api/sessions — archivo en raíz de /api para máxima compatibilidad con Vercel
+ */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createSessionData, joinSessionData, toSnapshot } from "../lib/sessions.js";
-import type { JoinRequest } from "../lib/types.js";
-import { getSessionByCode, saveSession } from "../lib/store.js";
+import { createSessionData, joinSessionData, toSnapshot } from "./lib/sessions.js";
+import type { JoinRequest } from "./lib/types.js";
+import { getSessionByCode, saveSession } from "./lib/store.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -15,8 +18,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       session = createSessionData();
     }
 
-    const body = (req.body ?? {}) as JoinRequest;
-    const name = body.name?.trim();
+    const body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as JoinRequest;
+    const name = body?.name?.trim();
 
     if (name) {
       const result = joinSessionData(session, {

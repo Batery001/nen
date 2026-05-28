@@ -19,6 +19,12 @@ En el deploy debe aparecer un commit reciente, por ejemplo:
    - Output Directory → vacío
 4. **Deploy**.
 
+## Error JSON.parse / HTML en lugar de JSON
+
+- **Root Directory** debe ser la raíz del repo (no solo `client`).
+- **Borra** `VITE_API_URL` y `VITE_SOCKET_URL` en Vercel si no usas backend externo.
+- Prueba en el navegador: `https://tu-app.vercel.app/api/health` (debe devolver JSON).
+
 ## Comprobar
 
 En el log del build debe verse:
