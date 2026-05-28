@@ -1,0 +1,15 @@
+# Backend con WebSockets — despliega en https://render.com (plan free)
+# Después de desplegar, copia la URL y configúrala en Vercel como VITE_API_URL y VITE_SOCKET_URL
+services:
+  - type: web
+    name: nen-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLIENT_ORIGIN
+        sync: false
