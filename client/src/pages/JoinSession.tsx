@@ -63,8 +63,8 @@ export function JoinSession() {
       });
 
       navigate(`/partida/${result.session.code}`);
-    } catch {
-      setError("Error de conexión. ¿Está el servidor en marcha?");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error de conexión");
     } finally {
       setLoading(false);
     }

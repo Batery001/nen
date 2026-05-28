@@ -7,3 +7,4 @@ dist/
 *.tsbuildinfo
 lib/**/*.js
 lib/**/*.js.map
+.vercel

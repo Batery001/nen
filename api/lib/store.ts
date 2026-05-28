@@ -1,6 +1,6 @@
-import type { GameSession } from "../../lib/types.js";
-import * as mongo from "../../lib/db/sessions.js";
-import { isMongoConfigured } from "../../lib/db/client.js";
+import type { GameSession } from "./types.js";
+import * as mongo from "./db/sessions.js";
+import { isMongoConfigured } from "./db/client.js";
 
 const memory = globalThis as unknown as {
   __nikuSessions?: Map<string, GameSession>;

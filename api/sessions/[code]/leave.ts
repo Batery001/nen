@@ -11,21 +11,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Método no permitido" });
   }
 
-  const session = await getSessionByCode(code);
-  if (!session) {
-    return res.status(404).json({ error: "Partida no encontrada" });
-  }
+  try {
+    const session = await getSessionByCode(code);
+    if (!session) {
+      return res.status(404).json({ error: "Partida no encontrada" });
+    }
 
-  const { participantId } = req.body as { participantId?: string };
-  if (!participantId) {
-    return res.status(400).json({ error: "participantId requerido" });
-  }
+    const { participantId } = req.body as { participantId?: string };
+    if (!participantId) {
+      return res.status(400).json({ error: "participantId requerido" });
+    }
 
-  leaveSessionData(session, participantId);
-  await deleteSessionIfEmpty(session);
-  if (session.participants.length > 0) {
-    await saveSession(session);
-    return res.status(200).json(toSnapshot(session));
+    leaveSessionData(session, participantId);
+    await deleteSessionIfEmpty(session);
+    if (session.participants.length > 0) {
+      await saveSession(session);
+      return res.status(200).json(toSnapshot(session));
+    }
+    return res.status(200).json({ ok: true, removed: true });
+  } catch (err) {
+    console.error("POST /api/sessions/:code/leave", err);
+    const message = err instanceof Error ? err.message : "Error al salir";
+    return res.status(500).json({ error: message });
   }
-  return res.status(200).json({ ok: true, removed: true });
 }

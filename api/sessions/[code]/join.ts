@@ -12,12 +12,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Método no permitido" });
   }
 
-  const session = await getSessionByCode(code);
-  if (!session) {
-    return res.status(404).json({ ok: false, error: "Partida no encontrada" });
-  }
+  try {
+    const session = await getSessionByCode(code);
+    if (!session) {
+      return res.status(404).json({ ok: false, error: "Partida no encontrada" });
+    }
 
-  const result = joinSessionData(session, req.body as JoinRequest);
-  if (result.ok) await saveSession(session);
-  return res.status(result.ok ? 200 : 400).json(result);
+    const result = joinSessionData(session, req.body as JoinRequest);
+    if (result.ok) await saveSession(session);
+    return res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    console.error("POST /api/sessions/:code/join", err);
+    const message = err instanceof Error ? err.message : "Error al unirse";
+    return res.status(500).json({ ok: false, error: message });
+  }
 }

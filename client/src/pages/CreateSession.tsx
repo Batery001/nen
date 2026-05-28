@@ -39,8 +39,13 @@ export function CreateSession() {
       });
 
       navigate(`/partida/${result.session.code}`);
-    } catch {
-      setError("No se pudo crear la partida. ¿Está el servidor en marcha?");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      setError(
+        msg.includes("MONGODB") || msg.includes("mongo")
+          ? `${msg}. Revisa MONGODB_URI en Vercel y Network Access en Atlas (0.0.0.0/0).`
+          : msg || "No se pudo crear la partida. ¿Está el servidor en marcha?"
+      );
     } finally {
       setLoading(false);
     }
