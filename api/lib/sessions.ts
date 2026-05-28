@@ -1,5 +1,7 @@
 import { customAlphabet } from "nanoid";
 import type { GameSession, JoinRequest, JoinResponse, Participant, Role, SessionSnapshot } from "./types.js";
+import { ensureHubFields } from "./migrate.js";
+import { ensureCharacter } from "./hub.js";
 
 const generateCode = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 6);
 
@@ -8,13 +10,14 @@ function hasRole(session: GameSession, role: Role): boolean {
 }
 
 export function toSnapshot(session: GameSession): SessionSnapshot {
+  const s = ensureHubFields(session);
   return {
-    id: session.id,
-    code: session.code,
-    createdAt: session.createdAt,
-    participants: [...session.participants],
+    id: s.id,
+    code: s.code,
+    createdAt: s.createdAt,
+    participants: [...s.participants],
     rolesAvailable: {
-      master: !hasRole(session, "master"),
+      master: !hasRole(s, "master"),
       player: true,
       observer: true,
     },
@@ -22,25 +25,32 @@ export function toSnapshot(session: GameSession): SessionSnapshot {
 }
 
 export function createSessionData(): GameSession {
-  return {
+  return ensureHubFields({
     id: crypto.randomUUID(),
     code: generateCode(),
     createdAt: new Date().toISOString(),
     participants: [],
-  };
+    campaignTitle: "Nueva campaña",
+    campaignSummary: "",
+    campaignAudioUrl: "",
+    wiki: [],
+    characters: [],
+    playSessions: [],
+  });
 }
 
 export function joinSessionData(session: GameSession, payload: JoinRequest): JoinResponse {
+  const s = ensureHubFields(session);
   const name = payload.name?.trim();
   if (!name || name.length < 2) {
     return { ok: false, error: "El nombre debe tener al menos 2 caracteres" };
   }
 
-  if (payload.sessionId && payload.sessionId !== session.id) {
+  if (payload.sessionId && payload.sessionId !== s.id) {
     return { ok: false, error: "Partida no encontrada" };
   }
 
-  if (payload.role === "master" && hasRole(session, "master")) {
+  if (payload.role === "master" && hasRole(s, "master")) {
     return { ok: false, error: "Ya hay un master en esta partida" };
   }
 
@@ -51,18 +61,22 @@ export function joinSessionData(session: GameSession, payload: JoinRequest): Joi
     connectedAt: new Date().toISOString(),
   };
 
-  session.participants.push(participant);
+  s.participants.push(participant);
+  if (payload.role === "player") {
+    ensureCharacter(s, participant);
+  }
 
   return {
     ok: true,
-    session: toSnapshot(session),
+    session: toSnapshot(s),
     you: { participantId: participant.id, role: payload.role },
   };
 }
 
 export function leaveSessionData(session: GameSession, participantId: string): SessionSnapshot | null {
-  const index = session.participants.findIndex((p) => p.id === participantId);
-  if (index === -1) return toSnapshot(session);
-  session.participants.splice(index, 1);
-  return toSnapshot(session);
+  const s = ensureHubFields(session);
+  const index = s.participants.findIndex((p) => p.id === participantId);
+  if (index === -1) return toSnapshot(s);
+  s.participants.splice(index, 1);
+  return toSnapshot(s);
 }

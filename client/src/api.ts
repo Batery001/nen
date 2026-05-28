@@ -1,4 +1,11 @@
-import type { JoinResponse, Role, SessionSnapshot } from "./types";
+import type {
+  CharacterPatch,
+  HubMasterPatch,
+  HubView,
+  JoinResponse,
+  Role,
+  SessionSnapshot,
+} from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -92,4 +99,46 @@ export async function leaveSession(code: string, participantId: string): Promise
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ participantId }),
   });
+}
+
+function hubUrl(code: string, participantId: string, path = "hub"): string {
+  const base = apiUrl(
+    `/api/sessions/${encodeURIComponent(code.toUpperCase())}/${path}`
+  );
+  return `${base}?participantId=${encodeURIComponent(participantId)}`;
+}
+
+export async function fetchHub(code: string, participantId: string): Promise<HubView> {
+  const res = await fetch(hubUrl(code, participantId));
+  if (!res.ok) throw new Error(await parseError(res, "No se pudo cargar el hub"));
+  return readJson(res);
+}
+
+export async function updateHub(
+  code: string,
+  participantId: string,
+  patch: HubMasterPatch
+): Promise<HubView> {
+  const res = await fetch(hubUrl(code, participantId), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(await parseError(res, "No se pudo guardar"));
+  return readJson(res);
+}
+
+export async function updateCharacter(
+  code: string,
+  participantId: string,
+  patch: CharacterPatch,
+  targetParticipantId?: string
+): Promise<HubView> {
+  const res = await fetch(hubUrl(code, participantId, "hub/character"), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ targetParticipantId, patch }),
+  });
+  if (!res.ok) throw new Error(await parseError(res, "No se pudo guardar personaje"));
+  return readJson(res);
 }

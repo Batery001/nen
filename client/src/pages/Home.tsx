@@ -5,11 +5,11 @@ export function Home() {
     <div className="space-y-8">
       <section className="rounded-2xl border border-[var(--color-slate-border)] bg-[var(--color-slate-panel)] p-8 text-center">
         <h2 className="font-display text-2xl text-[var(--color-parchment)]">
-          Crea o únete a una partida
+          Hub de campaña
         </h2>
         <p className="mx-auto mt-3 max-w-md text-[var(--color-mist)]">
-          Genera una sala, comparte el código y conéctate como master, jugador u
-          observador en tiempo real.
+          Jugáis por Discord, llamada o en persona. Aquí documentáis la campaña: wiki,
+          resúmenes y audio para escuchar como audiolibro.
         </p>
       </section>
 
@@ -22,10 +22,10 @@ export function Home() {
             ✨
           </span>
           <h3 className="mt-3 font-display text-xl text-[var(--color-gold)]">
-            Crear partida
+            Crear campaña
           </h3>
           <p className="mt-2 text-sm text-[var(--color-mist)]">
-            Genera un código y entra como master
+            Eres el master con acceso total al hub
           </p>
         </Link>
 
@@ -36,12 +36,28 @@ export function Home() {
           <span className="text-3xl" aria-hidden>
             🎲
           </span>
-          <h3 className="mt-3 font-display text-xl">Unirse a partida</h3>
+          <h3 className="mt-3 font-display text-xl">Unirse</h3>
           <p className="mt-2 text-sm text-[var(--color-mist)]">
-            Introduce el código y elige tu rol
+            Jugador (su personaje) u observador (solo escuchar)
           </p>
         </Link>
       </div>
+
+      <section className="rounded-xl border border-[var(--color-slate-border)] bg-[#121018] p-4 text-sm text-[var(--color-mist)]">
+        <p className="font-medium text-[var(--color-parchment)]">Roles</p>
+        <ul className="mt-2 space-y-1 list-disc list-inside">
+          <li>
+            <strong className="text-[var(--color-gold)]">Master</strong> — edita wiki,
+            resúmenes, audio y sesiones
+          </li>
+          <li>
+            <strong>Jugador</strong> — solo su ficha; lee lo publicado
+          </li>
+          <li>
+            <strong>Observador</strong> — resumen y audio (modo audiolibro)
+          </li>
+        </ul>
+      </section>
     </div>
   );
 }

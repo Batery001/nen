@@ -1,5 +1,7 @@
 export type Role = "master" | "player" | "observer";
 
+export type WikiEntryType = "location" | "item" | "npc" | "note";
+
 export interface Participant {
   id: string;
   name: string;
@@ -7,11 +9,43 @@ export interface Participant {
   connectedAt: string;
 }
 
+export interface CharacterSheet {
+  participantId: string;
+  playerName: string;
+  characterName: string;
+  bio: string;
+  privateNotes: string;
+}
+
+export interface WikiEntry {
+  id: string;
+  type: WikiEntryType;
+  title: string;
+  body: string;
+  /** Solo visible para el master */
+  masterOnly: boolean;
+}
+
+export interface PlaySessionRecord {
+  id: string;
+  title: string;
+  summary: string;
+  audioUrl: string;
+  playedAt: string;
+  published: boolean;
+}
+
 export interface GameSession {
   id: string;
   code: string;
   createdAt: string;
   participants: Participant[];
+  campaignTitle: string;
+  campaignSummary: string;
+  campaignAudioUrl: string;
+  wiki: WikiEntry[];
+  characters: CharacterSheet[];
+  playSessions: PlaySessionRecord[];
 }
 
 export interface SessionSnapshot {
@@ -37,4 +71,33 @@ export interface JoinResponse {
   error?: string;
   session?: SessionSnapshot;
   you?: { participantId: string; role: Role };
+}
+
+/** Vista del hub filtrada por permisos */
+export interface HubView {
+  code: string;
+  role: Role;
+  participantId: string;
+  campaignTitle: string;
+  campaignSummary: string;
+  campaignAudioUrl: string;
+  participants?: Participant[];
+  wiki?: WikiEntry[];
+  playSessions?: PlaySessionRecord[];
+  myCharacter?: CharacterSheet;
+  characters?: CharacterSheet[];
+}
+
+export interface HubMasterPatch {
+  campaignTitle?: string;
+  campaignSummary?: string;
+  campaignAudioUrl?: string;
+  wiki?: WikiEntry[];
+  playSessions?: PlaySessionRecord[];
+}
+
+export interface CharacterPatch {
+  characterName?: string;
+  bio?: string;
+  privateNotes?: string;
 }

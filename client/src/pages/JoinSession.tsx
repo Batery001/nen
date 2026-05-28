@@ -62,7 +62,7 @@ export function JoinSession() {
         name: name.trim(),
       });
 
-      navigate(`/partida/${result.session.code}`, { state: { session: result.session } });
+      navigate(`/hub/${result.session.code}`, { state: { session: result.session } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error de conexión");
     } finally {

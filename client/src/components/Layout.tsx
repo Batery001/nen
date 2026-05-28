@@ -9,7 +9,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             Nen
           </h1>
           <p className="mt-1 text-sm text-[var(--color-mist)]">
-            Tu mesa de rol, conectada
+            Wiki y memoria de tu campaña
           </p>
         </Link>
       </header>

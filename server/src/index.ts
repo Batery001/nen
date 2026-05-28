@@ -6,7 +6,14 @@ import {
   leaveSessionData,
   toSnapshot,
 } from "./lib/sessions.js";
-import type { JoinRequest } from "./lib/types.js";
+import {
+  applyCharacterPatch,
+  applyMasterPatch,
+  buildHubView,
+  requireMaster,
+} from "./lib/hub.js";
+import { ensureHubFields } from "./lib/migrate.js";
+import type { CharacterPatch, HubMasterPatch, JoinRequest } from "./lib/types.js";
 import {
   deleteSessionIfEmpty,
   getSessionByCode,
@@ -125,6 +132,89 @@ app.post("/api/sessions/:code/join", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, error: "Error al unirse" });
+  }
+});
+
+app.get("/api/sessions/:code/hub", async (req, res) => {
+  try {
+    const participantId = req.query.participantId as string;
+    if (!participantId) {
+      res.status(400).json({ error: "participantId requerido" });
+      return;
+    }
+    const session = await getSessionByCode(req.params.code);
+    if (!session) {
+      res.status(404).json({ error: "Partida no encontrada" });
+      return;
+    }
+    const hub = buildHubView(ensureHubFields(session), participantId);
+    if (!hub) {
+      res.status(403).json({ error: "No estás en esta mesa" });
+      return;
+    }
+    res.json(hub);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al cargar el hub" });
+  }
+});
+
+app.patch("/api/sessions/:code/hub", async (req, res) => {
+  try {
+    const participantId = req.query.participantId as string;
+    if (!participantId) {
+      res.status(400).json({ error: "participantId requerido" });
+      return;
+    }
+    const session = await getSessionByCode(req.params.code);
+    if (!session) {
+      res.status(404).json({ error: "Partida no encontrada" });
+      return;
+    }
+    if (!requireMaster(session, participantId)) {
+      res.status(403).json({ error: "Solo el master puede editar la campaña" });
+      return;
+    }
+    applyMasterPatch(ensureHubFields(session), req.body as HubMasterPatch);
+    await saveSession(session);
+    res.json(buildHubView(session, participantId));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al guardar" });
+  }
+});
+
+app.put("/api/sessions/:code/hub/character", async (req, res) => {
+  try {
+    const participantId = req.query.participantId as string;
+    const { targetParticipantId, patch } = req.body as {
+      targetParticipantId?: string;
+      patch?: CharacterPatch;
+    };
+    if (!participantId) {
+      res.status(400).json({ error: "participantId requerido" });
+      return;
+    }
+    const session = await getSessionByCode(req.params.code);
+    if (!session) {
+      res.status(404).json({ error: "Partida no encontrada" });
+      return;
+    }
+    const result = applyCharacterPatch(
+      ensureHubFields(session),
+      participantId,
+      targetParticipantId ?? participantId,
+      patch ?? {}
+    );
+    if (!result.ok) {
+      res.status(403).json({ error: result.error });
+      return;
+    }
+    await saveSession(session);
+    res.json(buildHubView(session, participantId));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al guardar personaje" });
   }
 });
 

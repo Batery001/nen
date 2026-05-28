@@ -3,7 +3,7 @@ import { Layout } from "./components/Layout";
 import { CreateSession } from "./pages/CreateSession";
 import { Home } from "./pages/Home";
 import { JoinSession } from "./pages/JoinSession";
-import { SessionRoom } from "./pages/SessionRoom";
+import { HubPage } from "./pages/HubPage";
 
 export function App() {
   return (
@@ -13,7 +13,8 @@ export function App() {
           <Route path="/" element={<Home />} />
           <Route path="/crear" element={<CreateSession />} />
           <Route path="/unirse" element={<JoinSession />} />
-          <Route path="/partida/:code" element={<SessionRoom />} />
+          <Route path="/hub/:code" element={<HubPage />} />
+          <Route path="/partida/:code" element={<HubPage />} />
         </Routes>
       </Layout>
     </BrowserRouter>
