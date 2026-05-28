@@ -1,39 +1,43 @@
 import cors from "cors";
 import express from "express";
-import { createServer } from "http";
-import { Server } from "socket.io";
 import {
-  addParticipant,
-  createSession,
-  findSessionBySocket,
-  getSessionByCode,
-  getSessionById,
-  removeParticipantBySocket,
+  createSessionData,
+  joinSessionData,
+  leaveSessionData,
   toSnapshot,
-} from "./sessions.js";
-import type { Role } from "./types.js";
+} from "./lib/sessions.js";
+import type { JoinRequest } from "./lib/types.js";
+import { deleteSessionIfEmpty, getSessionByCode, saveSession } from "./store.js";
 
 const PORT = Number(process.env.PORT) || 3001;
+const HOST = process.env.HOST ?? "0.0.0.0";
 
-/** Orígenes permitidos separados por coma. Ej: https://nen.vercel.app,http://localhost:5173 */
 const allowedOrigins = (process.env.CLIENT_ORIGIN ?? "http://localhost:5173")
   .split(",")
   .map((o) => o.trim())
   .filter(Boolean);
 
-function corsOrigin(
-  origin: string | undefined,
-  callback: (err: Error | null, allow?: boolean) => void
-) {
-  if (!origin || allowedOrigins.includes(origin)) {
-    callback(null, true);
-    return;
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  try {
+    const host = new URL(origin).hostname;
+    if (host.endsWith(".vercel.app") || host === "vercel.app") return true;
+  } catch {
+    /* ignore */
   }
-  callback(null, false);
+  return false;
 }
 
 const app = express();
-app.use(cors({ origin: corsOrigin, credentials: true }));
+app.use(
+  cors({
+    origin(origin, callback) {
+      callback(null, isAllowedOrigin(origin));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
@@ -41,7 +45,11 @@ app.get("/health", (_req, res) => {
 });
 
 app.post("/api/sessions", (_req, res) => {
-  const session = createSession();
+  let session = createSessionData();
+  while (getSessionByCode(session.code)) {
+    session = createSessionData();
+  }
+  saveSession(session);
   res.status(201).json(toSnapshot(session));
 });
 
@@ -54,72 +62,41 @@ app.get("/api/sessions/:code", (req, res) => {
   res.json(toSnapshot(session));
 });
 
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: { origin: allowedOrigins, methods: ["GET", "POST"] },
+app.post("/api/sessions/:code/join", (req, res) => {
+  const session = getSessionByCode(req.params.code);
+  if (!session) {
+    res.status(404).json({ ok: false, error: "Partida no encontrada" });
+    return;
+  }
+
+  const result = joinSessionData(session, req.body as JoinRequest);
+  if (result.ok) saveSession(session);
+  res.status(result.ok ? 200 : 400).json(result);
 });
 
-io.on("connection", (socket) => {
-  socket.on(
-    "session:join",
-    (
-      payload: { sessionId?: string; code?: string; name: string; role: Role },
-      callback?: (response: unknown) => void
-    ) => {
-      const respond = (data: unknown) => {
-        if (typeof callback === "function") callback(data);
-      };
+app.post("/api/sessions/:code/leave", (req, res) => {
+  const session = getSessionByCode(req.params.code);
+  if (!session) {
+    res.status(404).json({ error: "Partida no encontrada" });
+    return;
+  }
 
-      const name = payload.name?.trim();
-      if (!name || name.length < 2) {
-        respond({ ok: false, error: "El nombre debe tener al menos 2 caracteres" });
-        return;
-      }
+  const { participantId } = req.body as { participantId?: string };
+  if (!participantId) {
+    res.status(400).json({ error: "participantId requerido" });
+    return;
+  }
 
-      const session =
-        (payload.sessionId && getSessionById(payload.sessionId)) ||
-        (payload.code && getSessionByCode(payload.code));
-
-      if (!session) {
-        respond({ ok: false, error: "Partida no encontrada" });
-        return;
-      }
-
-      const participant = {
-        id: crypto.randomUUID(),
-        socketId: socket.id,
-        name,
-        role: payload.role,
-        connectedAt: new Date().toISOString(),
-      };
-
-      const snapshot = addParticipant(session.id, participant);
-      if (!snapshot) {
-        const reason =
-          payload.role === "master"
-            ? "Ya hay un master en esta partida"
-            : "No se pudo unir a la partida";
-        respond({ ok: false, error: reason });
-        return;
-      }
-
-      socket.join(session.id);
-      socket.data.sessionId = session.id;
-      socket.data.participantId = participant.id;
-
-      io.to(session.id).emit("session:updated", snapshot);
-      respond({ ok: true, session: snapshot, you: { participantId: participant.id, role: payload.role } });
-    }
-  );
-
-  socket.on("disconnect", () => {
-    const snapshot = removeParticipantBySocket(socket.id);
-    if (snapshot) {
-      io.to(snapshot.id).emit("session:updated", snapshot);
-    }
-  });
+  leaveSessionData(session, participantId);
+  deleteSessionIfEmpty(session);
+  if (session.participants.length > 0) {
+    saveSession(session);
+    res.json(toSnapshot(session));
+  } else {
+    res.json({ ok: true, removed: true });
+  }
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`Servidor Nen en http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Servidor Nen en http://${HOST}:${PORT}`);
 });

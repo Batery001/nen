@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getSessionByCode } from "../api";
+import { getSessionByCode, leaveSession } from "../api";
 import { ParticipantList } from "../components/ParticipantList";
-import { getSocket } from "../socket";
 import {
   clearStoredSession,
   loadStoredSession,
   type StoredSession,
 } from "../hooks/useSessionStorage";
 import { ROLE_LABELS, type SessionSnapshot } from "../types";
+
+const POLL_MS = 2000;
 
 export function SessionRoom() {
   const { code } = useParams<{ code: string }>();
@@ -24,22 +25,25 @@ export function SessionRoom() {
   useEffect(() => {
     if (!code) return;
 
-    getSessionByCode(code)
-      .then(setSession)
-      .catch(() => setError("Partida no encontrada"));
+    let active = true;
 
-    const socket = getSocket();
-    if (!socket.connected) socket.connect();
-
-    const onUpdate = (snapshot: SessionSnapshot) => {
-      if (snapshot.code === code.toUpperCase()) {
-        setSession(snapshot);
+    async function refresh() {
+      try {
+        const data = await getSessionByCode(code);
+        if (active) {
+          setSession(data);
+          setError(null);
+        }
+      } catch {
+        if (active) setError("Partida no encontrada");
       }
-    };
+    }
 
-    socket.on("session:updated", onUpdate);
+    refresh();
+    const interval = setInterval(refresh, POLL_MS);
     return () => {
-      socket.off("session:updated", onUpdate);
+      active = false;
+      clearInterval(interval);
     };
   }, [code]);
 
@@ -50,8 +54,14 @@ export function SessionRoom() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  function leaveSession() {
-    getSocket().disconnect();
+  async function handleLeave() {
+    if (stored && code) {
+      try {
+        await leaveSession(code, stored.participantId);
+      } catch {
+        /* salir igual aunque falle el servidor */
+      }
+    }
     clearStoredSession();
     window.location.href = "/";
   }
@@ -111,6 +121,9 @@ export function SessionRoom() {
             highlightId={isYou}
           />
         </div>
+        <p className="mt-3 text-center text-xs text-[var(--color-mist)]">
+          La lista se actualiza cada pocos segundos
+        </p>
       </section>
 
       <p className="text-center text-sm text-[var(--color-mist)]">
@@ -132,7 +145,7 @@ export function SessionRoom() {
       {stored && (
         <button
           type="button"
-          onClick={leaveSession}
+          onClick={handleLeave}
           className="w-full rounded-lg border border-[var(--color-slate-border)] py-2.5 text-sm text-[var(--color-mist)] hover:border-[var(--color-ember)] hover:text-red-200"
         >
           Salir de la partida

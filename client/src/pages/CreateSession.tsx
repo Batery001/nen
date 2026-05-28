@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createSession } from "../api";
 import { RoleCard } from "../components/RoleCard";
-import { joinSession } from "../socket";
+import { joinSession } from "../api";
 import { saveStoredSession } from "../hooks/useSessionStorage";
 
 export function CreateSession() {
@@ -19,6 +19,7 @@ export function CreateSession() {
     try {
       const session = await createSession();
       const result = await joinSession({
+        code: session.code,
         sessionId: session.id,
         name: name.trim(),
         role: "master",

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSessionByCode } from "../api";
 import { RoleCard } from "../components/RoleCard";
-import { joinSession } from "../socket";
+import { joinSession } from "../api";
 import { saveStoredSession } from "../hooks/useSessionStorage";
 import type { Role, SessionSnapshot } from "../types";
 

@@ -40,43 +40,29 @@ nen/
 
 Los datos de sesión viven en memoria (se pierden al reiniciar el servidor). Ideal para prototipo; más adelante se puede persistir en base de datos.
 
-## Despliegue (Vercel + Render)
+## Despliegue en Vercel (recomendado)
 
-Vercel solo sirve el **frontend**. El **backend** (API + WebSockets) debe ir en otro host con proceso persistente, por ejemplo [Render](https://render.com) (gratis).
+Todo funciona en **un solo proyecto de Vercel**: frontend + API (`/api`).
 
-### 1. Backend en Render
+1. [vercel.com](https://vercel.com) → importa [Batery001/nen](https://github.com/Batery001/nen).
+2. **Root Directory:** vacío (raíz del repo). No pongas solo `client`.
+3. **Build / Output:** los toma de `vercel.json` (`npm run build` → `client/dist`).
+4. **Opcional — Vercel KV** (recomendado para producción):
+   - En el proyecto → **Storage** → **Create Database** → **KV**
+   - Vincúlala al proyecto (inyecta `KV_REST_API_URL` y `KV_REST_API_TOKEN` automáticamente)
+5. **Deploy**. No hace falta `VITE_API_URL` ni `VITE_SOCKET_URL` (la app usa `/api` del mismo dominio).
 
-1. Entra en [render.com](https://render.com) → **New** → **Blueprint** (o Web Service).
-2. Conecta el repo [Batery001/nen](https://github.com/Batery001/nen).
-3. Render detectará `render.yaml` y creará el servicio `nen-api`.
-4. En variables de entorno, define **`CLIENT_ORIGIN`** con la URL de tu app en Vercel, por ejemplo:
-   ```
-   https://tu-proyecto.vercel.app
-   ```
-   (Cuando tengas la URL final de Vercel, actualízala aquí.)
-5. Tras el deploy, copia la URL del servicio, ej. `https://nen-api.onrender.com`.
+### Desarrollo local
 
-### 2. Frontend en Vercel
+```bash
+npm run dev
+```
 
-1. [vercel.com](https://vercel.com) → **Add New Project** → importa el repo de GitHub.
-2. Configuración del proyecto:
-   - **Root Directory:** `client`
-   - **Framework Preset:** Vite
-   - **Build Command:** `npm run build`
-   - **Output Directory:** `dist`
-3. Variables de entorno (Settings → Environment Variables):
+- Frontend: http://localhost:5173  
+- API local: http://localhost:3001 (proxy automático desde Vite)
 
-   | Variable | Valor |
-   |----------|--------|
-   | `VITE_API_URL` | `https://nen-api.onrender.com` (tu URL de Render) |
-   | `VITE_SOCKET_URL` | La misma URL de Render |
+### Backend en Render (opcional)
 
-4. **Deploy**. Abre la URL que te da Vercel (ej. `https://nen-xxx.vercel.app`).
-5. Vuelve a Render y actualiza **`CLIENT_ORIGIN`** con esa URL exacta de Vercel (sin barra final). Redespliega el backend si hace falta.
+Si prefieres el servidor Express separado, despliega con `render.yaml` y define en Vercel:
 
-### Comprobar
-
-- Abre `https://tu-api.onrender.com/health` → debe responder `{"ok":true}`.
-- En la app de Vercel: crear partida y unirse desde otra pestaña o el móvil.
-
-> **Nota:** En el plan free de Render el servidor se “duerme” tras inactividad; la primera petición puede tardar ~30 s.
+`VITE_API_URL=https://tu-api.onrender.com`

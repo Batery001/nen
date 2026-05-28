@@ -9,6 +9,10 @@
     "vercel-build": "npm run build",
     "start": "npm run start --prefix server"
   },
+  "dependencies": {
+    "@vercel/node": "^5.1.14",
+    "nanoid": "^5.1.5"
+  },
   "devDependencies": {
     "concurrently": "^9.1.2"
   }
