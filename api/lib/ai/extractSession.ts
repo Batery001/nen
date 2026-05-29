@@ -1,4 +1,5 @@
 import type { SessionAiProposal, WikiEntryType } from "../types.js";
+import { WHISPER_MAX_BYTES, formatAudioSize } from "../audioLimits.js";
 
 const WIKI_TYPES = new Set<WikiEntryType>(["location", "item", "npc", "note"]);
 
@@ -48,7 +49,7 @@ export async function transcribeAudioBuffer(
   return (await res.text()).trim();
 }
 
-export async function downloadAudio(url: string, maxBytes = 24 * 1024 * 1024): Promise<{
+export async function downloadAudio(url: string, maxBytes = WHISPER_MAX_BYTES): Promise<{
   buffer: Buffer;
   mimeType: string;
   filename: string;
@@ -56,7 +57,9 @@ export async function downloadAudio(url: string, maxBytes = 24 * 1024 * 1024): P
   const head = await fetch(url, { method: "HEAD", redirect: "follow" });
   const len = Number(head.headers.get("content-length") || 0);
   if (len > maxBytes) {
-    throw new Error("El audio es demasiado grande (máx. ~24 MB). Usa un enlace más corto o pega la transcripción.");
+    throw new Error(
+      `El audio es demasiado grande (máx. ${formatAudioSize(maxBytes)} para transcribir). Exporta MP3 más corto o pega la transcripción.`
+    );
   }
 
   const res = await fetch(url, { redirect: "follow" });
@@ -64,7 +67,7 @@ export async function downloadAudio(url: string, maxBytes = 24 * 1024 * 1024): P
 
   const arrayBuf = await res.arrayBuffer();
   if (arrayBuf.byteLength > maxBytes) {
-    throw new Error("El audio supera el límite de tamaño (~24 MB)");
+    throw new Error(`El audio supera el límite de tamaño (${formatAudioSize(maxBytes)})`);
   }
 
   const mimeType = res.headers.get("content-type") || "audio/mpeg";

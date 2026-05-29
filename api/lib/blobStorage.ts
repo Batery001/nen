@@ -2,6 +2,28 @@ export function isBlobConfigured(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
 }
 
+export function isHostedBlobUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return host.includes("blob.vercel-storage.com") || host.includes("public.blob.vercel-storage.com");
+  } catch {
+    return false;
+  }
+}
+
+/** Elimina un archivo en Vercel Blob si la URL es nuestra (libera espacio tras transcribir). */
+export async function deleteBlobIfHosted(url: string | undefined): Promise<void> {
+  if (!url?.trim() || !isHostedBlobUrl(url)) return;
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) return;
+  try {
+    const { del } = await import("@vercel/blob");
+    await del(url.trim(), { token });
+  } catch (err) {
+    console.warn("deleteBlobIfHosted", url, err);
+  }
+}
+
 export async function uploadCampaignAudio(
   campaignCode: string,
   playSessionId: string,

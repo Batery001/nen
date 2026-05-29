@@ -20,7 +20,9 @@ import {
   handleRejoinRequest,
   handleUploadAudioRequest,
   handleUploadCampaignAudioRequest,
+  handleAttachAudioUrlRequest,
 } from "../../api/lib/sessionRoutes.js";
+import blobUploadTokenHandler from "../../api/blob/upload-token.js";
 import {
   createSessionData,
   joinSessionData,
@@ -69,6 +71,10 @@ app.use(
   })
 );
 app.use(express.json());
+
+app.post("/api/blob/upload-token", async (req, res) => {
+  await blobUploadTokenHandler(req as never, res as never);
+});
 
 app.get("/health", async (_req, res) => {
   const mongo = isMongoConfigured();
@@ -186,6 +192,17 @@ app.post("/api/sessions", async (req, res) => {
 
   if (action === "upload-campaign-audio" && code && req.query.participantId) {
     await handleUploadCampaignAudioRequest(req as never, res as never, code);
+    return;
+  }
+
+  const attachParticipantId = req.query.participantId as string | undefined;
+  if (action === "attach-audio" && code && attachParticipantId) {
+    await handleAttachAudioUrlRequest(
+      req as never,
+      res as never,
+      code,
+      playSessionId
+    );
     return;
   }
 

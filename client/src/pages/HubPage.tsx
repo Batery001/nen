@@ -358,7 +358,8 @@ function MasterHub({
           />
           <AudioBlock url={audioUrl} label="Vista previa" />
           <p className="text-xs text-[var(--color-mist)]">
-            Para transcribir una sesión con IA, baja a <strong className="text-[var(--color-parchment)]">Sesiones jugadas</strong> → + Sesión → subir audio ahí.
+            Hasta ~100 MB por subida directa a la nube. Para transcribir con IA, usa{" "}
+            <strong className="text-[var(--color-parchment)]">Sesiones jugadas</strong>.
           </p>
         </div>
         <label className="block text-sm text-[var(--color-mist)]">Visibilidad</label>
@@ -641,14 +642,6 @@ function PlaySessionEditor({
     setAiMsg(null);
     setAiError(false);
     try {
-      if (file.size <= 4 * 1024 * 1024) {
-        const buf = await file.arrayBuffer();
-        const bytes = new Uint8Array(buf);
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        await runProcess({ audioBase64: btoa(binary), audioMimeType: file.type || "audio/mpeg" });
-        return;
-      }
       const { audioUrl, hub } = await uploadPlaySessionAudio(
         code,
         participantId,
@@ -658,7 +651,7 @@ function PlaySessionEditor({
       onChange({ ...session, audioUrl });
       const updated = hub.playSessions?.find((p) => p.id === session.id);
       if (updated) onChange(updated);
-      setAiMsg(`Audio subido (${audioUrl.slice(0, 40)}…). Pulsa «Procesar URL de audio».`);
+      setAiMsg("Audio subido. Pulsa «Procesar URL de audio» (Whisper admite hasta ~25 MB).");
       onHubRefresh();
     } catch (e) {
       setAiError(true);
@@ -771,7 +764,9 @@ function PlaySessionEditor({
           {processing ? "Subiendo…" : "Subir archivo de audio (MP3, M4A, WAV…)"}
         </button>
         <p className="text-xs text-[var(--color-mist)]">
-          Hasta 4 MB directo; archivos más grandes usan almacenamiento en la nube (Blob).
+          Sesiones largas: sube MP3/M4A (recomendado 64–96 kbps). Hasta ~100 MB en la nube; la IA transcribe
+          hasta ~25 MB — si pesa más, exporta un MP3 más corto o pega la transcripción. Tras transcribir, el
+          archivo se borra del almacenamiento (se guarda el texto).
         </p>
 
         <div className="flex flex-wrap gap-2">

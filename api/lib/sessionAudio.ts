@@ -5,6 +5,8 @@ import {
   transcribeAudioBuffer,
 } from "./ai/extractSession.js";
 import { applySessionProposal, findPlaySession } from "./ai/applyProposal.js";
+import { shouldDeleteAudioAfterTranscribe } from "./audioLimits.js";
+import { deleteBlobIfHosted } from "./blobStorage.js";
 import { ensureHubFields } from "./migrate.js";
 import type { GameSession, SessionAiProposal } from "./types.js";
 
@@ -37,11 +39,6 @@ export async function processPlaySessionAudio(
     if (!transcript) {
       if (options.audioBase64) {
         const buffer = Buffer.from(options.audioBase64, "base64");
-        if (buffer.byteLength > 4 * 1024 * 1024) {
-          throw new Error(
-            "Archivo demasiado grande para subir directo (máx. 4 MB). Usa URL de audio o pega la transcripción."
-          );
-        }
         transcript = await transcribeAudioBuffer(
           buffer,
           "upload.mp3",
@@ -76,6 +73,12 @@ export async function processPlaySessionAudio(
 
     ps.aiProposal = proposal;
     ps.transcriptStatus = "done";
+
+    if (shouldDeleteAudioAfterTranscribe() && ps.audioUrl?.trim()) {
+      const previousUrl = ps.audioUrl.trim();
+      await deleteBlobIfHosted(previousUrl);
+      ps.audioUrl = undefined;
+    }
 
     return { transcript, proposal };
   } catch (err) {
@@ -124,6 +127,7 @@ export async function uploadPlaySessionAudioFile(
     );
   }
 
+  await deleteBlobIfHosted(ps.audioUrl);
   const url = await uploadCampaignAudio(campaign.code, playSessionId, buffer, contentType);
   ps.audioUrl = url;
   return url;

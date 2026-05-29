@@ -12,6 +12,7 @@ import {
   handleRejoinRequest,
   handleUploadAudioRequest,
   handleUploadCampaignAudioRequest,
+  handleAttachAudioUrlRequest,
 } from "../lib/sessionRoutes.js";
 import { createSessionData, toSnapshot } from "../lib/sessions.js";
 import type { JoinRequest } from "../lib/types.js";
@@ -74,6 +75,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (err) {
       console.error("upload-campaign-audio via /api/sessions", err);
       const message = err instanceof Error ? err.message : "Error al subir";
+      return res.status(500).json({ ok: false, error: message });
+    }
+  }
+
+  if (action === "attach-audio" && code && participantId) {
+    try {
+      await handleAttachAudioUrlRequest(req, res, code, playSessionId);
+      return;
+    } catch (err) {
+      console.error("attach-audio via /api/sessions", err);
+      const message = err instanceof Error ? err.message : "Error al adjuntar";
       return res.status(500).json({ ok: false, error: message });
     }
   }

@@ -312,33 +312,8 @@ export async function uploadCampaignAudioFile(
   participantId: string,
   file: File
 ): Promise<{ audioUrl: string; hub: HubView }> {
-  const buf = await file.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  const params = new URLSearchParams({
-    action: "upload-campaign-audio",
-    code: code.toUpperCase(),
-    participantId,
-  });
-  const res = await fetch(apiUrl(`/api/sessions?${params}`), {
-    method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({
-      participantId,
-      audioBase64: btoa(binary),
-      audioMimeType: file.type || "audio/mpeg",
-    }),
-  });
-  const data = await readJson<{
-    ok?: boolean;
-    error?: string;
-    audioUrl?: string;
-    hub?: HubView;
-  }>(res);
-  if (!res.ok) throw new Error(data.error ?? "No se pudo subir el audio");
-  if (!data.audioUrl || !data.hub) throw new Error("Respuesta incompleta");
-  return { audioUrl: data.audioUrl, hub: data.hub };
+  const { uploadCampaignAudioSmart } = await import("./lib/audioUpload.js");
+  return uploadCampaignAudioSmart(code, participantId, file);
 }
 
 export async function uploadPlaySessionAudio(
@@ -347,33 +322,8 @@ export async function uploadPlaySessionAudio(
   playSessionId: string,
   file: File
 ): Promise<{ audioUrl: string; hub: HubView }> {
-  const buf = await file.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  const params = new URLSearchParams({
-    action: "upload-audio",
-    code: code.toUpperCase(),
-    playSessionId,
-  });
-  const res = await fetch(apiUrl(`/api/sessions?${params}`), {
-    method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({
-      participantId,
-      audioBase64: btoa(binary),
-      audioMimeType: file.type || "audio/mpeg",
-    }),
-  });
-  const data = await readJson<{
-    ok?: boolean;
-    error?: string;
-    audioUrl?: string;
-    hub?: HubView;
-  }>(res);
-  if (!res.ok) throw new Error(data.error ?? "No se pudo subir el audio");
-  if (!data.audioUrl || !data.hub) throw new Error("Respuesta incompleta");
-  return { audioUrl: data.audioUrl, hub: data.hub };
+  const { uploadPlaySessionAudioSmart } = await import("./lib/audioUpload.js");
+  return uploadPlaySessionAudioSmart(code, participantId, playSessionId, file);
 }
 
 export async function updatePlaySessionProposal(

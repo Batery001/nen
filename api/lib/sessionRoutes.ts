@@ -5,7 +5,12 @@ import { ensureHubFields } from "./migrate.js";
 import { getUserFromRequest } from "./requestAuth.js";
 import { rejoinCampaign } from "./sessions.js";
 import type { HubMasterPatch } from "./types.js";
-import { uploadCampaignLevelAudio, isBlobConfigured } from "./blobStorage.js";
+import { INLINE_AUDIO_MAX_BYTES, formatAudioSize } from "./audioLimits.js";
+import {
+  uploadCampaignLevelAudio,
+  isBlobConfigured,
+  deleteBlobIfHosted,
+} from "./blobStorage.js";
 import { uploadPlaySessionAudioFile } from "./sessionAudio.js";
 import { getSessionByCode, saveSession } from "./store.js";
 
@@ -142,6 +147,13 @@ export async function handleUploadAudioRequest(
 
   try {
     const buffer = Buffer.from(body.audioBase64, "base64");
+    if (buffer.byteLength > INLINE_AUDIO_MAX_BYTES) {
+      res.status(400).json({
+        ok: false,
+        error: `Archivo demasiado grande para subida directa (máx. ${formatAudioSize(INLINE_AUDIO_MAX_BYTES)}). Usa el botón de subir archivo.`,
+      });
+      return;
+    }
     const audioUrl = await uploadPlaySessionAudioFile(
       session,
       playSessionId,
@@ -211,6 +223,14 @@ export async function handleUploadCampaignAudioRequest(
 
   try {
     const buffer = Buffer.from(body.audioBase64, "base64");
+    if (buffer.byteLength > INLINE_AUDIO_MAX_BYTES) {
+      res.status(400).json({
+        ok: false,
+        error: `Archivo demasiado grande (máx. ${formatAudioSize(INLINE_AUDIO_MAX_BYTES)} en modo directo). Usa subir archivo.`,
+      });
+      return;
+    }
+    await deleteBlobIfHosted(session.campaignAudioUrl);
     const url = await uploadCampaignLevelAudio(code, buffer, body.audioMimeType ?? "audio/mpeg");
     session.campaignAudioUrl = url;
     await saveSession(session);
@@ -222,6 +242,71 @@ export async function handleUploadCampaignAudioRequest(
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error al subir";
+    res.status(400).json({ ok: false, error: message });
+  }
+}
+
+/** Registra la URL tras subida directa navegador → Vercel Blob */
+export async function handleAttachAudioUrlRequest(
+  req: VercelRequest,
+  res: VercelResponse,
+  code: string,
+  playSessionId?: string
+): Promise<void> {
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    res.status(405).json({ error: "Método no permitido" });
+    return;
+  }
+
+  const body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as {
+    participantId?: string;
+    audioUrl?: string;
+  };
+
+  const participantId = body.participantId?.trim();
+  const audioUrl = body.audioUrl?.trim();
+
+  if (!participantId || !audioUrl) {
+    res.status(400).json({ error: "participantId y audioUrl requeridos" });
+    return;
+  }
+
+  const session = await getSessionByCode(code);
+  if (!session) {
+    res.status(404).json({ error: "Partida no encontrada" });
+    return;
+  }
+
+  const user = await getUserFromRequest(req);
+  if (!requireMaster(session, participantId, user?.id)) {
+    res.status(403).json({ error: "Solo el master puede adjuntar audio" });
+    return;
+  }
+
+  try {
+    if (playSessionId) {
+      const ps = session.playSessions?.find((p) => p.id === playSessionId);
+      if (!ps) {
+        res.status(404).json({ error: "Sesión jugada no encontrada" });
+        return;
+      }
+      await deleteBlobIfHosted(ps.audioUrl);
+      ps.audioUrl = audioUrl;
+    } else {
+      await deleteBlobIfHosted(session.campaignAudioUrl);
+      session.campaignAudioUrl = audioUrl;
+    }
+
+    await saveSession(session);
+    res.setHeader("X-Niku-Route", "sessions-index-attach-audio");
+    res.status(200).json({
+      ok: true,
+      audioUrl,
+      hub: buildHubView(session, participantId, user?.id),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error al guardar audio";
     res.status(400).json({ ok: false, error: message });
   }
 }
