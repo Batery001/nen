@@ -1,31 +1,33 @@
 # Ideas para Niku / Nen
 
-## Corto plazo (encajan con lo que ya tienes)
+## Hecho recientemente
 
-- **Notificaciones al master**: email o webhook Discord cuando alguien pide entrar como jugador.
-- **Enlace de invitación**: `/unirse?code=RL75QA` o `/invite/RL75QA` que pre-rellena el código.
-- **Subida de audio**: Vercel Blob / S3 en vez de pegar URLs de MP3.
-- **Editar entradas wiki** en línea (no solo añadir/eliminar).
-- **Co-master**: delegar aprobación de jugadores a otro miembro.
-- **Varias campañas en localStorage**: mapa `code → sesión` en vez de una sola.
+- Enlace de invitación `/unirse?code=XXX` y `/invite/:code`
+- Avisos al master (email vía Resend + Discord webhook) al solicitar jugador
+- Subida de audio a Vercel Blob (`BLOB_READ_WRITE_TOKEN`)
+- Timeline de campaña en hub master
+- Plantillas de ficha: genérico, D&D 5e, Pathfinder 2e
+- Propuesta IA editable antes de aplicar
+- Sugerir NPC desde wiki (IA)
+- Export Markdown / HTML (imprimir como PDF)
+- Rate limit login por email (5 / 15 min)
+- Tests e2e `npm test` (servidor local en :3001)
+- Bot Discord opcional (`integrations/discord-bot.mjs`)
+- Eliminado `server/src/lib` duplicado
 
-## Medio plazo (producto asíncrono)
+## Corto plazo
 
-- **Transcripción**: subir audio de sesión → Whisper → resumen editable por el master.
-- **Timeline de campaña**: línea temporal de sesiones jugadas + hitos de la wiki.
-- **Fichas con plantillas**: D&D 5e, Pathfinder, genérico.
-- **Modo “solo lectura compartido”**: enlace público sin login para observadores externos.
-- **PWA / offline**: leer resúmenes y wiki sin conexión.
+- Notificaciones push en el hub (sin depender de email)
+- Subida de audio >25 MB con upload directo al cliente (Blob client)
+- Editar entradas wiki en línea
+- Co-master
+
+## Medio plazo
+
+- PWA / offline
+- Enlace público solo lectura
 
 ## Largo plazo
 
-- **IA en el hub**: “Resume la última sesión”, “Genera NPC a partir de nota”, coherencia con wiki.
-- **Integración Discord bot**: `/niku resumen`, avisos de solicitudes.
-- **Export PDF / Markdown** de la campaña completa.
-- **Plan Pro en Vercel** si superas límites de funciones serverless o necesitas más almacenamiento.
-
-## Mejoras técnicas
-
-- Unificar `server/src/lib` duplicado o eliminarlo (Express ya importa `api/lib`).
-- Tests e2e: crear campaña → salir → reingresar → aprobar jugador.
-- Rate limit en `/api/auth/request-code` anti-spam.
+- Bot Discord completo (interacciones en tiempo real)
+- Integración calendario / recordatorios de sesión

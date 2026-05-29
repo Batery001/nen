@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  applyPlaySessionProposal,
+  downloadCampaignExport,
   fetchHub,
   leaveSession,
+  processPlaySessionAudio,
   rejoinCampaign,
   resolveJoinRequest,
+  suggestNpc,
   updateCharacter,
   updateHub,
+  updatePlaySessionProposal,
+  uploadPlaySessionAudio,
 } from "../api";
+import { CampaignTimeline } from "../components/CampaignTimeline";
+import { InviteLinkBox } from "../components/InviteLinkBox";
+import { CHARACTER_TEMPLATES, getTemplate } from "../lib/characterTemplates";
 import { StatusMessage } from "../components/StatusMessage";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -22,6 +31,9 @@ import {
   type CampaignVisibility,
   type HubView,
   type PlaySessionRecord,
+  type NpcSuggestion,
+  type SessionAiProposal,
+  type CharacterTemplateId,
   type WikiEntry,
   type WikiEntryType,
 } from "../types";
@@ -84,6 +96,9 @@ function MasterHub({
   const [newWikiBody, setNewWikiBody] = useState("");
   const [newWikiType, setNewWikiType] = useState<WikiEntryType>("note");
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [npcLoading, setNpcLoading] = useState(false);
+  const [npcSuggestion, setNpcSuggestion] = useState<NpcSuggestion | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   async function handleJoinRequest(requestId: string, action: "approve" | "reject") {
     setResolvingId(requestId);
@@ -131,6 +146,7 @@ function MasterHub({
         title: newWikiTitle.trim(),
         body: newWikiBody,
         masterOnly: false,
+        createdAt: new Date().toISOString(),
       },
     ]);
     setNewWikiTitle("");
@@ -153,8 +169,88 @@ function MasterHub({
 
   const pending = hub.pendingJoinRequests ?? [];
 
+  async function handleSuggestNpc() {
+    setNpcLoading(true);
+    try {
+      const s = await suggestNpc(hub.code, hub.participantId);
+      setNpcSuggestion(s);
+    } catch (e) {
+      setMsgError(true);
+      setMsg(e instanceof Error ? e.message : "Error IA");
+    } finally {
+      setNpcLoading(false);
+    }
+  }
+
+  function addNpcToWiki() {
+    if (!npcSuggestion) return;
+    setWiki([
+      ...wiki,
+      {
+        id: crypto.randomUUID(),
+        type: "npc",
+        title: npcSuggestion.title,
+        body: [npcSuggestion.body, ...npcSuggestion.hooks.map((h) => `• ${h}`)].join("\n\n"),
+        masterOnly: false,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    setNpcSuggestion(null);
+    setMsg("NPC añadido a la wiki (guarda la campaña)");
+    setMsgError(false);
+  }
+
   return (
     <div className="space-y-8">
+      <InviteLinkBox inviteUrl={hub.inviteUrl} code={hub.code} />
+
+      {hub.timeline && hub.timeline.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="font-display text-lg text-[var(--color-gold)]">Timeline</h2>
+          <CampaignTimeline events={hub.timeline} />
+        </section>
+      )}
+
+      <section className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={exporting}
+          onClick={async () => {
+            setExporting(true);
+            try {
+              await downloadCampaignExport(hub.code, hub.participantId, "markdown");
+            } catch (e) {
+              setMsgError(true);
+              setMsg(e instanceof Error ? e.message : "Error");
+            } finally {
+              setExporting(false);
+            }
+          }}
+          className="rounded border border-[var(--color-slate-border)] px-3 py-1.5 text-xs"
+        >
+          Exportar Markdown
+        </button>
+        <button
+          type="button"
+          disabled={exporting}
+          onClick={async () => {
+            setExporting(true);
+            try {
+              await downloadCampaignExport(hub.code, hub.participantId, "html");
+              window.print();
+            } catch (e) {
+              setMsgError(true);
+              setMsg(e instanceof Error ? e.message : "Error");
+            } finally {
+              setExporting(false);
+            }
+          }}
+          className="rounded border border-[var(--color-slate-border)] px-3 py-1.5 text-xs"
+        >
+          Exportar HTML / PDF
+        </button>
+      </section>
+
       {pending.length > 0 && (
         <section className="space-y-3 rounded-xl border border-amber-900/50 bg-amber-950/20 p-4">
           <h2 className="font-display text-lg text-amber-300">
@@ -234,7 +330,26 @@ function MasterHub({
       </section>
 
       <section className="space-y-3">
-        <h2 className="font-display text-lg text-[var(--color-gold)]">Wiki</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display text-lg text-[var(--color-gold)]">Wiki</h2>
+          <button
+            type="button"
+            disabled={npcLoading}
+            onClick={() => void handleSuggestNpc()}
+            className="text-xs text-[var(--color-gold)] hover:underline"
+          >
+            {npcLoading ? "Generando NPC…" : "+ Sugerir NPC (IA)"}
+          </button>
+        </div>
+        {npcSuggestion && (
+          <div className="rounded-lg border border-[var(--color-gold)]/30 p-3 text-sm space-y-2">
+            <p className="font-medium">{npcSuggestion.title}</p>
+            <p className="text-[var(--color-mist)]">{npcSuggestion.body}</p>
+            <button type="button" onClick={addNpcToWiki} className="text-xs text-[var(--color-gold)]">
+              Añadir a wiki
+            </button>
+          </div>
+        )}
         <ul className="space-y-2">
           {wiki.map((w) => (
             <li
@@ -319,10 +434,13 @@ function MasterHub({
         {playSessions.map((ps, i) => (
           <PlaySessionEditor
             key={ps.id}
+            code={hub.code}
+            participantId={hub.participantId}
             session={ps}
             onChange={(next) =>
               setPlaySessions(playSessions.map((p, j) => (j === i ? next : p)))
             }
+            onHubRefresh={onRefresh}
           />
         ))}
       </section>
@@ -353,15 +471,198 @@ function MasterHub({
   );
 }
 
-function PlaySessionEditor({
-  session,
+function EditableProposal({
+  proposal,
   onChange,
+  onSave,
+  saving,
 }: {
-  session: PlaySessionRecord;
-  onChange: (s: PlaySessionRecord) => void;
+  proposal: SessionAiProposal;
+  onChange: (p: SessionAiProposal) => void;
+  onSave: () => void;
+  saving: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-[var(--color-slate-border)] bg-[var(--color-slate-panel)] p-3 space-y-2">
+    <div className="rounded border border-[var(--color-gold)]/40 bg-[#121018] p-3 space-y-3 text-sm">
+      <p className="text-xs text-[var(--color-gold)] font-medium">Propuesta editable (ajusta antes de aplicar)</p>
+      <div>
+        <p className="text-xs text-[var(--color-mist)] mb-1">Resumen</p>
+        <textarea
+          className="w-full rounded border border-[var(--color-slate-border)] bg-black/30 px-2 py-1 text-sm min-h-20"
+          value={proposal.summary}
+          onChange={(e) => onChange({ ...proposal, summary: e.target.value })}
+        />
+      </div>
+      {proposal.wikiEntries.length > 0 && (
+        <div>
+          <p className="text-xs text-[var(--color-mist)] mb-1">Wiki ({proposal.wikiEntries.length})</p>
+          <ul className="space-y-1">
+            {proposal.wikiEntries.map((w, i) => (
+              <li key={i}>
+                {WIKI_TYPE_LABELS[w.type]}: <strong>{w.title}</strong>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {proposal.characterNotes.length > 0 && (
+        <div>
+          <p className="text-xs text-[var(--color-mist)] mb-1">Personajes</p>
+          <ul className="space-y-1">
+            {proposal.characterNotes.map((c, i) => (
+              <li key={i}>
+                <strong>{c.playerOrCharacterName}</strong>
+                {c.bioAddition && `: ${c.bioAddition.slice(0, 120)}…`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {!proposal.appliedAt && (
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onSave}
+          className="text-xs text-[var(--color-gold)] hover:underline"
+        >
+          Guardar cambios en la propuesta
+        </button>
+      )}
+      {proposal.appliedAt && (
+        <p className="text-xs text-green-400">Aplicado al hub el {new Date(proposal.appliedAt).toLocaleString()}</p>
+      )}
+    </div>
+  );
+}
+
+function PlaySessionEditor({
+  code,
+  participantId,
+  session,
+  onChange,
+  onHubRefresh,
+}: {
+  code: string;
+  participantId: string;
+  session: PlaySessionRecord;
+  onChange: (s: PlaySessionRecord) => void;
+  onHubRefresh: () => void;
+}) {
+  const [processing, setProcessing] = useState(false);
+  const [pasteTranscript, setPasteTranscript] = useState("");
+  const [aiMsg, setAiMsg] = useState<string | null>(null);
+  const [aiError, setAiError] = useState(false);
+  const [draftProposal, setDraftProposal] = useState<SessionAiProposal | null>(
+    session.aiProposal ?? null
+  );
+
+  useEffect(() => {
+    setDraftProposal(session.aiProposal ?? null);
+  }, [session.aiProposal]);
+
+  async function runProcess(options: {
+    audioUrl?: string;
+    audioBase64?: string;
+    audioMimeType?: string;
+    transcript?: string;
+  }) {
+    setProcessing(true);
+    setAiMsg(null);
+    setAiError(false);
+    try {
+      const { hub } = await processPlaySessionAudio(code, participantId, session.id, options);
+      const updated = hub.playSessions?.find((p) => p.id === session.id);
+      if (updated) onChange(updated);
+      setAiMsg("Listo: revisa la propuesta y pulsa «Aplicar al hub».");
+      onHubRefresh();
+    } catch (e) {
+      setAiError(true);
+      setAiMsg(e instanceof Error ? e.message : "Error al procesar");
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  async function handleFile(file: File) {
+    setProcessing(true);
+    setAiMsg(null);
+    setAiError(false);
+    try {
+      if (file.size <= 4 * 1024 * 1024) {
+        const buf = await file.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        await runProcess({ audioBase64: btoa(binary), audioMimeType: file.type || "audio/mpeg" });
+        return;
+      }
+      const { audioUrl, hub } = await uploadPlaySessionAudio(
+        code,
+        participantId,
+        session.id,
+        file
+      );
+      onChange({ ...session, audioUrl });
+      const updated = hub.playSessions?.find((p) => p.id === session.id);
+      if (updated) onChange(updated);
+      setAiMsg(`Audio subido (${audioUrl.slice(0, 40)}…). Pulsa «Procesar URL de audio».`);
+      onHubRefresh();
+    } catch (e) {
+      setAiError(true);
+      setAiMsg(e instanceof Error ? e.message : "Error al subir");
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  async function saveProposalEdits() {
+    if (!draftProposal) return;
+    setProcessing(true);
+    try {
+      const hub = await updatePlaySessionProposal(
+        code,
+        participantId,
+        session.id,
+        draftProposal
+      );
+      const updated = hub.playSessions?.find((p) => p.id === session.id);
+      if (updated) onChange(updated);
+      setAiMsg("Propuesta guardada");
+    } catch (e) {
+      setAiError(true);
+      setAiMsg(e instanceof Error ? e.message : "Error");
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  async function handleApply() {
+    setProcessing(true);
+    setAiMsg(null);
+    setAiError(false);
+    try {
+      const { hub } = await applyPlaySessionProposal(
+        code,
+        participantId,
+        session.id,
+        draftProposal ?? undefined
+      );
+      const updated = hub.playSessions?.find((p) => p.id === session.id);
+      if (updated) onChange(updated);
+      setAiMsg("Aplicado: resumen, wiki y fichas actualizados. Guarda la campaña si cambiaste más cosas.");
+      onHubRefresh();
+    } catch (e) {
+      setAiError(true);
+      setAiMsg(e instanceof Error ? e.message : "Error al aplicar");
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  const status = session.transcriptStatus ?? "idle";
+
+  return (
+    <div className="rounded-lg border border-[var(--color-slate-border)] bg-[var(--color-slate-panel)] p-3 space-y-3">
       <input
         className="w-full rounded border border-[var(--color-slate-border)] bg-[#121018] px-2 py-1 font-medium"
         value={session.title}
@@ -377,7 +678,7 @@ function PlaySessionEditor({
         className="w-full rounded border border-[var(--color-slate-border)] bg-[#121018] px-2 py-1 text-xs"
         value={session.audioUrl}
         onChange={(e) => onChange({ ...session, audioUrl: e.target.value })}
-        placeholder="URL audio sesión"
+        placeholder="URL audio sesión (MP3, etc.)"
       />
       <label className="flex items-center gap-2 text-sm">
         <input
@@ -387,6 +688,89 @@ function PlaySessionEditor({
         />
         Publicado (visible para jugadores y observadores)
       </label>
+
+      <div className="border-t border-[var(--color-slate-border)] pt-3 space-y-2">
+        <p className="text-sm font-medium text-[var(--color-gold)]">Audio → transcripción → wiki</p>
+        <p className="text-xs text-[var(--color-mist)]">
+          Sube la grabación de la sesión terminada. La IA genera resumen, lugares, objetos y notas de PJ.
+          Requiere <code className="text-[var(--color-parchment)]">OPENAI_API_KEY</code> en el servidor.
+        </p>
+
+        <input
+          type="file"
+          accept="audio/*"
+          disabled={processing}
+          className="block w-full text-xs"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void handleFile(f);
+          }}
+        />
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={processing || !session.audioUrl.trim()}
+            onClick={() => void runProcess({ audioUrl: session.audioUrl.trim() })}
+            className="rounded border border-[var(--color-slate-border)] px-3 py-1.5 text-xs hover:border-[var(--color-gold)]"
+          >
+            {processing ? "Procesando…" : "Procesar URL de audio"}
+          </button>
+          <button
+            type="button"
+            disabled={processing || !pasteTranscript.trim()}
+            onClick={() => void runProcess({ transcript: pasteTranscript.trim() })}
+            className="rounded border border-[var(--color-slate-border)] px-3 py-1.5 text-xs hover:border-[var(--color-gold)]"
+          >
+            Solo analizar texto
+          </button>
+        </div>
+
+        <textarea
+          className="w-full rounded border border-[var(--color-slate-border)] bg-[#121018] px-2 py-1 text-xs min-h-14"
+          value={pasteTranscript}
+          onChange={(e) => setPasteTranscript(e.target.value)}
+          placeholder="O pega aquí la transcripción (si ya la tienes de otra herramienta)"
+        />
+
+        {status === "processing" && (
+          <p className="text-xs text-[var(--color-mist)]">Transcribiendo y analizando… puede tardar 1–2 min.</p>
+        )}
+        {session.transcriptError && (
+          <p className="text-xs text-red-300">{session.transcriptError}</p>
+        )}
+        {session.transcript && (
+          <details className="text-xs">
+            <summary className="cursor-pointer text-[var(--color-mist)]">Ver transcripción</summary>
+            <p className="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap text-[var(--color-parchment)]">
+              {session.transcript.slice(0, 4000)}
+              {session.transcript.length > 4000 ? "…" : ""}
+            </p>
+          </details>
+        )}
+
+        {draftProposal && (
+          <EditableProposal
+            proposal={draftProposal}
+            onChange={setDraftProposal}
+            onSave={() => void saveProposalEdits()}
+            saving={processing}
+          />
+        )}
+
+        {draftProposal && !draftProposal.appliedAt && (
+          <button
+            type="button"
+            disabled={processing}
+            onClick={() => void handleApply()}
+            className="w-full rounded-lg bg-[var(--color-gold)] py-2 text-sm font-semibold text-[var(--color-ink)]"
+          >
+            Aplicar al hub (wiki + fichas + resumen)
+          </button>
+        )}
+
+        {aiMsg && <StatusMessage message={aiMsg} variant={aiError ? "error" : "success"} />}
+      </div>
     </div>
   );
 }
@@ -402,15 +786,22 @@ function PlayerHub({
   const [characterName, setCharacterName] = useState(c?.characterName ?? "");
   const [bio, setBio] = useState(c?.bio ?? "");
   const [privateNotes, setPrivateNotes] = useState(c?.privateNotes ?? "");
+  const [templateId, setTemplateId] = useState<CharacterTemplateId>(
+    c?.templateId ?? "generic"
+  );
+  const [sheetData, setSheetData] = useState<Record<string, string>>(c?.sheetData ?? {});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [msgError, setMsgError] = useState(false);
+  const template = getTemplate(templateId);
 
   useEffect(() => {
     if (hub.myCharacter) {
       setCharacterName(hub.myCharacter.characterName);
       setBio(hub.myCharacter.bio);
       setPrivateNotes(hub.myCharacter.privateNotes);
+      setTemplateId(hub.myCharacter.templateId ?? "generic");
+      setSheetData(hub.myCharacter.sheetData ?? {});
     }
   }, [hub.myCharacter]);
 
@@ -429,6 +820,8 @@ function PlayerHub({
         characterName,
         bio,
         privateNotes,
+        templateId,
+        sheetData,
       });
       setMsg("Personaje guardado");
       onRefresh();
@@ -453,11 +846,47 @@ function PlayerHub({
           onChange={(e) => setCharacterName(e.target.value)}
           placeholder="Nombre del personaje"
         />
+        <label className="block text-sm">
+          Plantilla
+          <select
+            className="mt-1 w-full rounded-lg border border-[var(--color-slate-border)] bg-[#121018] px-3 py-2"
+            value={templateId}
+            onChange={(e) => setTemplateId(e.target.value as CharacterTemplateId)}
+          >
+            {CHARACTER_TEMPLATES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {template.fields.map((f) => (
+          <label key={f.key} className="block text-sm">
+            {f.label}
+            {f.multiline ? (
+              <textarea
+                className="mt-1 w-full rounded-lg border border-[var(--color-slate-border)] bg-[#121018] px-3 py-2 min-h-16"
+                value={sheetData[f.key] ?? ""}
+                onChange={(e) =>
+                  setSheetData({ ...sheetData, [f.key]: e.target.value })
+                }
+              />
+            ) : (
+              <input
+                className="mt-1 w-full rounded-lg border border-[var(--color-slate-border)] bg-[#121018] px-3 py-2"
+                value={sheetData[f.key] ?? ""}
+                onChange={(e) =>
+                  setSheetData({ ...sheetData, [f.key]: e.target.value })
+                }
+              />
+            )}
+          </label>
+        ))}
         <textarea
           className="min-h-24 w-full rounded-lg border border-[var(--color-slate-border)] bg-[#121018] px-3 py-2"
           value={bio}
           onChange={(e) => setBio(e.target.value)}
-          placeholder="Biografía / ficha pública"
+          placeholder="Biografía / notas libres"
         />
         <textarea
           className="min-h-20 w-full rounded-lg border border-[var(--color-slate-border)] bg-[#121018] px-3 py-2"

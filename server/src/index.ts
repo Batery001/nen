@@ -372,6 +372,212 @@ app.put("/api/sessions/:code/hub/character", async (req, res) => {
   }
 });
 
+app.post("/api/sessions/:code/play-sessions/:playSessionId/process-audio", async (req, res) => {
+  try {
+    const participantId = (req.body as { participantId?: string }).participantId ?? (req.query.participantId as string);
+    if (!participantId) {
+      res.status(400).json({ error: "participantId requerido" });
+      return;
+    }
+    const session = await getSessionByCode(req.params.code);
+    if (!session) {
+      res.status(404).json({ error: "Partida no encontrada" });
+      return;
+    }
+    const user = await getUserFromAuthHeader(req.headers.authorization);
+    if (!requireMaster(session, participantId, user?.id)) {
+      res.status(403).json({ error: "Solo el master puede procesar sesiones" });
+      return;
+    }
+    const body = req.body as {
+      audioUrl?: string;
+      audioBase64?: string;
+      audioMimeType?: string;
+      transcript?: string;
+    };
+    const { processPlaySessionAudio } = await import("../../api/lib/sessionAudio.js");
+    const result = await processPlaySessionAudio(session, req.params.playSessionId, body);
+    await saveSession(session);
+    res.json({
+      ok: true,
+      transcript: result.transcript,
+      proposal: result.proposal,
+      hub: buildHubView(session, participantId, user?.id),
+    });
+  } catch (err) {
+    console.error(err);
+    const session = await getSessionByCode(req.params.code);
+    if (session) await saveSession(session);
+    res.status(400).json({
+      ok: false,
+      error: err instanceof Error ? err.message : "Error al procesar",
+    });
+  }
+});
+
+app.post("/api/sessions/:code/play-sessions/:playSessionId/apply-proposal", async (req, res) => {
+  try {
+    const participantId = (req.body as { participantId?: string }).participantId ?? (req.query.participantId as string);
+    if (!participantId) {
+      res.status(400).json({ error: "participantId requerido" });
+      return;
+    }
+    const session = await getSessionByCode(req.params.code);
+    if (!session) {
+      res.status(404).json({ error: "Partida no encontrada" });
+      return;
+    }
+    const user = await getUserFromAuthHeader(req.headers.authorization);
+    if (!requireMaster(session, participantId, user?.id)) {
+      res.status(403).json({ error: "Solo el master puede aplicar propuestas" });
+      return;
+    }
+    const body = req.body as { proposal?: import("../../api/lib/types.js").SessionAiProposal };
+    const { applyPlaySessionProposal } = await import("../../api/lib/sessionAudio.js");
+    const proposal = applyPlaySessionProposal(
+      session,
+      req.params.playSessionId,
+      body.proposal
+    );
+    await saveSession(session);
+    res.json({
+      ok: true,
+      proposal,
+      hub: buildHubView(session, participantId, user?.id),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({
+      ok: false,
+      error: err instanceof Error ? err.message : "Error al aplicar",
+    });
+  }
+});
+
+app.post("/api/sessions/:code/play-sessions/:playSessionId/upload-audio", async (req, res) => {
+  try {
+    const participantId = (req.body as { participantId?: string }).participantId;
+    if (!participantId) {
+      res.status(400).json({ error: "participantId requerido" });
+      return;
+    }
+    const session = await getSessionByCode(req.params.code);
+    if (!session) {
+      res.status(404).json({ error: "Partida no encontrada" });
+      return;
+    }
+    const user = await getUserFromAuthHeader(req.headers.authorization);
+    if (!requireMaster(session, participantId, user?.id)) {
+      res.status(403).json({ error: "Solo el master puede subir audio" });
+      return;
+    }
+    const { audioBase64, audioMimeType } = req.body as {
+      audioBase64?: string;
+      audioMimeType?: string;
+    };
+    if (!audioBase64) {
+      res.status(400).json({ error: "audioBase64 requerido" });
+      return;
+    }
+    const { uploadPlaySessionAudioFile } = await import("../../api/lib/sessionAudio.js");
+    const audioUrl = await uploadPlaySessionAudioFile(
+      session,
+      req.params.playSessionId,
+      Buffer.from(audioBase64, "base64"),
+      audioMimeType ?? "audio/mpeg"
+    );
+    await saveSession(session);
+    res.json({ ok: true, audioUrl, hub: buildHubView(session, participantId, user?.id) });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err instanceof Error ? err.message : "Error" });
+  }
+});
+
+app.post("/api/sessions/:code/play-sessions/:playSessionId/update-proposal", async (req, res) => {
+  try {
+    const { participantId, proposal } = req.body as {
+      participantId?: string;
+      proposal?: import("../../api/lib/types.js").SessionAiProposal;
+    };
+    if (!participantId || !proposal) {
+      res.status(400).json({ error: "participantId y proposal requeridos" });
+      return;
+    }
+    const session = await getSessionByCode(req.params.code);
+    if (!session) {
+      res.status(404).json({ error: "Partida no encontrada" });
+      return;
+    }
+    const user = await getUserFromAuthHeader(req.headers.authorization);
+    if (!requireMaster(session, participantId, user?.id)) {
+      res.status(403).json({ error: "Solo el master" });
+      return;
+    }
+    const { updatePlaySessionProposal } = await import("../../api/lib/sessionAudio.js");
+    updatePlaySessionProposal(session, req.params.playSessionId, proposal);
+    await saveSession(session);
+    res.json({ ok: true, hub: buildHubView(session, participantId, user?.id) });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err instanceof Error ? err.message : "Error" });
+  }
+});
+
+app.get("/api/sessions/:code/export", async (req, res) => {
+  try {
+    const participantId = req.query.participantId as string;
+    if (!participantId) {
+      res.status(400).json({ error: "participantId requerido" });
+      return;
+    }
+    const session = await getSessionByCode(req.params.code);
+    if (!session) {
+      res.status(404).json({ error: "Partida no encontrada" });
+      return;
+    }
+    const user = await getUserFromAuthHeader(req.headers.authorization);
+    if (!requireMaster(session, participantId, user?.id)) {
+      res.status(403).json({ error: "Solo el master puede exportar" });
+      return;
+    }
+    const { exportCampaignHtml, exportCampaignMarkdown } = await import("../../api/lib/export.js");
+    const format = (req.query.format as string) ?? "markdown";
+    if (format === "html") {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(exportCampaignHtml(session));
+      return;
+    }
+    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.send(exportCampaignMarkdown(session));
+  } catch (err) {
+    res.status(500).json({ error: "Error al exportar" });
+  }
+});
+
+app.post("/api/sessions/:code/hub/suggest-npc", async (req, res) => {
+  try {
+    const { participantId, hint } = req.body as { participantId?: string; hint?: string };
+    if (!participantId) {
+      res.status(400).json({ error: "participantId requerido" });
+      return;
+    }
+    const session = await getSessionByCode(req.params.code);
+    if (!session) {
+      res.status(404).json({ error: "Partida no encontrada" });
+      return;
+    }
+    const user = await getUserFromAuthHeader(req.headers.authorization);
+    if (!requireMaster(session, participantId, user?.id)) {
+      res.status(403).json({ error: "Solo el master" });
+      return;
+    }
+    const { suggestNpcFromWiki } = await import("../../api/lib/ai/suggestNpc.js");
+    const suggestion = await suggestNpcFromWiki(session, hint);
+    res.json({ ok: true, suggestion });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err instanceof Error ? err.message : "Error IA" });
+  }
+});
+
 app.post("/api/sessions/:code/leave", async (req, res) => {
   try {
     const session = await getSessionByCode(req.params.code);

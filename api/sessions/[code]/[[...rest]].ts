@@ -18,7 +18,20 @@ import {
   rejoinCampaign,
   toSnapshot,
 } from "../../lib/sessions.js";
-import type { CharacterPatch, HubMasterPatch, JoinRequest } from "../../lib/types.js";
+import { suggestNpcFromWiki } from "../../lib/ai/suggestNpc.js";
+import { exportCampaignHtml, exportCampaignMarkdown } from "../../lib/export.js";
+import {
+  applyPlaySessionProposal,
+  processPlaySessionAudio,
+  updatePlaySessionProposal,
+  uploadPlaySessionAudioFile,
+} from "../../lib/sessionAudio.js";
+import type {
+  CharacterPatch,
+  HubMasterPatch,
+  JoinRequest,
+  SessionAiProposal,
+} from "../../lib/types.js";
 import { deleteSessionIfEmpty, getSessionByCode, saveSession } from "../../lib/store.js";
 
 function parseBody<T>(req: VercelRequest): T {
@@ -139,6 +152,156 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       res.setHeader("Allow", "GET, POST");
       return res.status(405).json({ error: "Método no permitido" });
+    }
+
+    // POST .../play-sessions/:id/process-audio | apply-proposal
+    if (segments[0] === "play-sessions" && segments.length === 3) {
+      const playSessionId = segments[1];
+      const action = segments[2];
+      const body = parseBody<{
+        participantId?: string;
+        audioUrl?: string;
+        audioBase64?: string;
+        audioMimeType?: string;
+        transcript?: string;
+        proposal?: SessionAiProposal;
+      }>(req);
+
+      const participantId = body.participantId ?? participantIdFrom(req);
+      if (!participantId) {
+        return res.status(400).json({ error: "participantId requerido" });
+      }
+      if (!requireMaster(session, participantId, user?.id)) {
+        return res.status(403).json({ error: "Solo el master puede procesar sesiones" });
+      }
+
+      if (action === "process-audio" && req.method === "POST") {
+        try {
+          const result = await processPlaySessionAudio(session, playSessionId, {
+            audioUrl: body.audioUrl,
+            audioBase64: body.audioBase64,
+            audioMimeType: body.audioMimeType,
+            transcript: body.transcript,
+          });
+          await saveSession(session);
+          return res.status(200).json({
+            ok: true,
+            transcript: result.transcript,
+            proposal: result.proposal,
+            hub: buildHubView(session, participantId, user?.id),
+          });
+        } catch (err) {
+          await saveSession(session);
+          const message = err instanceof Error ? err.message : "Error al procesar";
+          return res.status(400).json({ ok: false, error: message });
+        }
+      }
+
+      if (action === "apply-proposal" && req.method === "POST") {
+        try {
+          const proposal = applyPlaySessionProposal(
+            session,
+            playSessionId,
+            body.proposal as SessionAiProposal | undefined
+          );
+          await saveSession(session);
+          return res.status(200).json({
+            ok: true,
+            proposal,
+            hub: buildHubView(session, participantId, user?.id),
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Error al aplicar";
+          return res.status(400).json({ ok: false, error: message });
+        }
+      }
+
+      if (action === "update-proposal" && req.method === "POST") {
+        const proposal = body.proposal as SessionAiProposal | undefined;
+        if (!proposal) {
+          return res.status(400).json({ error: "proposal requerida" });
+        }
+        updatePlaySessionProposal(session, playSessionId, proposal);
+        await saveSession(session);
+        return res.status(200).json({
+          ok: true,
+          hub: buildHubView(session, participantId, user?.id),
+        });
+      }
+
+      if (action === "upload-audio" && req.method === "POST") {
+        try {
+          if (!body.audioBase64) {
+            return res.status(400).json({ error: "audioBase64 requerido" });
+          }
+          const buffer = Buffer.from(body.audioBase64, "base64");
+          const audioUrl = await uploadPlaySessionAudioFile(
+            session,
+            playSessionId,
+            buffer,
+            body.audioMimeType ?? "audio/mpeg"
+          );
+          await saveSession(session);
+          return res.status(200).json({
+            ok: true,
+            audioUrl,
+            hub: buildHubView(session, participantId, user?.id),
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Error al subir";
+          return res.status(400).json({ ok: false, error: message });
+        }
+      }
+
+      res.setHeader("Allow", "POST");
+      return res.status(405).json({ error: "Método no permitido" });
+    }
+
+    if (path === "export") {
+      const participantId = participantIdFrom(req);
+      if (!participantId) {
+        return res.status(400).json({ error: "participantId requerido" });
+      }
+      if (!requireMaster(session, participantId, user?.id)) {
+        return res.status(403).json({ error: "Solo el master puede exportar" });
+      }
+      if (req.method !== "GET") {
+        res.setHeader("Allow", "GET");
+        return res.status(405).json({ error: "Método no permitido" });
+      }
+      const format = (req.query.format as string) ?? "markdown";
+      if (format === "html") {
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${session.code}-campana.html"`
+        );
+        return res.status(200).send(exportCampaignHtml(session));
+      }
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${session.code}-campana.md"`
+      );
+      return res.status(200).send(exportCampaignMarkdown(session));
+    }
+
+    if (path === "hub/suggest-npc" && req.method === "POST") {
+      const body = parseBody<{ participantId?: string; hint?: string }>(req);
+      const participantId = body.participantId ?? participantIdFrom(req);
+      if (!participantId) {
+        return res.status(400).json({ error: "participantId requerido" });
+      }
+      if (!requireMaster(session, participantId, user?.id)) {
+        return res.status(403).json({ error: "Solo el master puede usar la IA" });
+      }
+      try {
+        const suggestion = await suggestNpcFromWiki(session, body.hint);
+        return res.status(200).json({ ok: true, suggestion });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Error IA";
+        return res.status(400).json({ ok: false, error: message });
+      }
     }
 
     // PUT /api/sessions/:code/hub/character

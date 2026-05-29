@@ -12,6 +12,12 @@ function RedirectPartida() {
   return <Navigate to={`/hub/${code ?? ""}`} replace />;
 }
 
+function RedirectInvite() {
+  const { code } = useParams<{ code: string }>();
+  const q = code ? `?code=${encodeURIComponent(code.toUpperCase())}` : "";
+  return <Navigate to={`/unirse${q}`} replace />;
+}
+
 export function App() {
   return (
     <BrowserRouter>
@@ -21,6 +27,7 @@ export function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/crear" element={<CreateSession />} />
           <Route path="/unirse" element={<JoinSession />} />
+          <Route path="/invite/:code" element={<RedirectInvite />} />
           <Route path="/espera/:code" element={<WaitingApprovalPage />} />
           <Route path="/hub/:code" element={<HubPage />} />
           <Route path="/partida/:code" element={<RedirectPartida />} />

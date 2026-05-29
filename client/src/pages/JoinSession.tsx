@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { getSessionByCode } from "../api";
 import { RoleCard } from "../components/RoleCard";
 import { joinSession } from "../api";
@@ -9,13 +9,19 @@ import type { Role, SessionSnapshot } from "../types";
 
 export function JoinSession() {
   const navigate = useNavigate();
-  const [code, setCode] = useState("");
+  const [searchParams] = useSearchParams();
+  const codeFromUrl = searchParams.get("code")?.toUpperCase().trim() ?? "";
+  const [code, setCode] = useState(codeFromUrl);
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("player");
   const [preview, setPreview] = useState<SessionSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [previewHint, setPreviewHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (codeFromUrl && codeFromUrl !== code) setCode(codeFromUrl);
+  }, [codeFromUrl, code]);
 
   useEffect(() => {
     if (code.trim().length < 4) {
@@ -97,6 +103,9 @@ export function JoinSession() {
         <p className="mt-2 text-sm text-[var(--color-mist)]">
           Como observador entras al instante. Como jugador, el master debe aprobar tu solicitud.
         </p>
+        {codeFromUrl && (
+          <p className="mt-1 text-xs text-emerald-400/90">Código detectado desde el enlace de invitación.</p>
+        )}
       </div>
 
       <label className="block">

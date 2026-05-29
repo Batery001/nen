@@ -1,6 +1,7 @@
 import type { GameSession, JoinResponse, PendingJoinRequest } from "./types.js";
 import { ensureHubFields } from "./migrate.js";
 import { findParticipantByUserId, reconnectParticipant } from "./membership.js";
+import { notifyMasterJoinRequest } from "./notifications.js";
 import { addParticipant, toSnapshot } from "./sessions.js";
 
 export function ensurePendingRequests(session: GameSession): PendingJoinRequest[] {
@@ -67,6 +68,7 @@ export function createPlayerJoinRequest(
     userId,
   };
   pending.push(request);
+  void notifyMasterJoinRequest(s, request);
 
   return {
     ok: true,

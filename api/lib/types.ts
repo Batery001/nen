@@ -41,6 +41,8 @@ export interface CharacterSheet {
   characterName: string;
   bio: string;
   privateNotes: string;
+  templateId?: CharacterTemplateId;
+  sheetData?: Record<string, string>;
 }
 
 export interface WikiEntry {
@@ -50,6 +52,29 @@ export interface WikiEntry {
   body: string;
   /** Solo visible para el master */
   masterOnly: boolean;
+  createdAt?: string;
+}
+
+export type CharacterTemplateId = "generic" | "dnd5e" | "pf2e";
+
+export type TranscriptStatus = "idle" | "processing" | "done" | "error";
+
+export interface SessionAiProposal {
+  id: string;
+  generatedAt: string;
+  appliedAt?: string;
+  summary: string;
+  wikiEntries: Array<{
+    type: WikiEntryType;
+    title: string;
+    body: string;
+    masterOnly?: boolean;
+  }>;
+  characterNotes: Array<{
+    playerOrCharacterName: string;
+    bioAddition: string;
+    privateNotes?: string;
+  }>;
 }
 
 export interface PlaySessionRecord {
@@ -59,6 +84,10 @@ export interface PlaySessionRecord {
   audioUrl: string;
   playedAt: string;
   published: boolean;
+  transcript?: string;
+  transcriptStatus?: TranscriptStatus;
+  transcriptError?: string;
+  aiProposal?: SessionAiProposal | null;
 }
 
 export interface PendingJoinRequest {
@@ -131,6 +160,16 @@ export interface JoinResponse {
 }
 
 /** Vista del hub filtrada por permisos */
+export interface TimelineEvent {
+  id: string;
+  kind: "session" | "wiki" | "campaign";
+  date: string;
+  title: string;
+  summary?: string;
+  wikiType?: WikiEntryType;
+  published?: boolean;
+}
+
 export interface HubView {
   code: string;
   role: Role;
@@ -141,11 +180,13 @@ export interface HubView {
   participants?: Participant[];
   wiki?: WikiEntry[];
   playSessions?: PlaySessionRecord[];
+  timeline?: TimelineEvent[];
   myCharacter?: CharacterSheet;
   characters?: CharacterSheet[];
   pendingJoinRequests?: PendingJoinRequest[];
   isOwner?: boolean;
   campaignVisibility?: CampaignVisibility;
+  inviteUrl?: string;
 }
 
 export interface HubMasterPatch {
@@ -161,4 +202,6 @@ export interface CharacterPatch {
   characterName?: string;
   bio?: string;
   privateNotes?: string;
+  templateId?: CharacterTemplateId;
+  sheetData?: Record<string, string>;
 }

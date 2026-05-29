@@ -5,6 +5,8 @@ import type {
   HubView,
   JoinResponse,
   Role,
+  NpcSuggestion,
+  SessionAiProposal,
   SessionListItem,
   SessionSnapshot,
   User,
@@ -241,6 +243,165 @@ export async function resolveJoinRequest(
     throw new Error(data.error ?? "No se pudo procesar la solicitud");
   }
   return data;
+}
+
+export async function processPlaySessionAudio(
+  code: string,
+  participantId: string,
+  playSessionId: string,
+  options: {
+    audioUrl?: string;
+    audioBase64?: string;
+    audioMimeType?: string;
+    transcript?: string;
+  }
+): Promise<{ transcript: string; proposal: SessionAiProposal; hub: HubView }> {
+  const res = await fetch(
+    apiUrl(
+      `/api/sessions/${encodeURIComponent(code.toUpperCase())}/play-sessions/${encodeURIComponent(playSessionId)}/process-audio`
+    ),
+    {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ participantId, ...options }),
+    }
+  );
+  const data = await readJson<{
+    ok?: boolean;
+    error?: string;
+    transcript?: string;
+    proposal?: SessionAiProposal;
+    hub?: HubView;
+  }>(res);
+  if (!res.ok) throw new Error(data.error ?? "No se pudo procesar el audio");
+  if (!data.transcript || !data.proposal || !data.hub) {
+    throw new Error("Respuesta incompleta del servidor");
+  }
+  return { transcript: data.transcript, proposal: data.proposal, hub: data.hub };
+}
+
+export async function uploadPlaySessionAudio(
+  code: string,
+  participantId: string,
+  playSessionId: string,
+  file: File
+): Promise<{ audioUrl: string; hub: HubView }> {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const res = await fetch(
+    apiUrl(
+      `/api/sessions/${encodeURIComponent(code.toUpperCase())}/play-sessions/${encodeURIComponent(playSessionId)}/upload-audio`
+    ),
+    {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        participantId,
+        audioBase64: btoa(binary),
+        audioMimeType: file.type || "audio/mpeg",
+      }),
+    }
+  );
+  const data = await readJson<{
+    ok?: boolean;
+    error?: string;
+    audioUrl?: string;
+    hub?: HubView;
+  }>(res);
+  if (!res.ok) throw new Error(data.error ?? "No se pudo subir el audio");
+  if (!data.audioUrl || !data.hub) throw new Error("Respuesta incompleta");
+  return { audioUrl: data.audioUrl, hub: data.hub };
+}
+
+export async function updatePlaySessionProposal(
+  code: string,
+  participantId: string,
+  playSessionId: string,
+  proposal: SessionAiProposal
+): Promise<HubView> {
+  const res = await fetch(
+    apiUrl(
+      `/api/sessions/${encodeURIComponent(code.toUpperCase())}/play-sessions/${encodeURIComponent(playSessionId)}/update-proposal`
+    ),
+    {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ participantId, proposal }),
+    }
+  );
+  const data = await readJson<{ hub?: HubView; error?: string }>(res);
+  if (!res.ok) throw new Error(data.error ?? "No se pudo guardar la propuesta");
+  if (!data.hub) throw new Error("Respuesta incompleta");
+  return data.hub;
+}
+
+export async function applyPlaySessionProposal(
+  code: string,
+  participantId: string,
+  playSessionId: string,
+  proposal?: SessionAiProposal
+): Promise<{ proposal: SessionAiProposal; hub: HubView }> {
+  const res = await fetch(
+    apiUrl(
+      `/api/sessions/${encodeURIComponent(code.toUpperCase())}/play-sessions/${encodeURIComponent(playSessionId)}/apply-proposal`
+    ),
+    {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ participantId, proposal }),
+    }
+  );
+  const data = await readJson<{
+    ok?: boolean;
+    error?: string;
+    proposal?: SessionAiProposal;
+    hub?: HubView;
+  }>(res);
+  if (!res.ok) throw new Error(data.error ?? "No se pudo aplicar la propuesta");
+  if (!data.proposal || !data.hub) throw new Error("Respuesta incompleta del servidor");
+  return { proposal: data.proposal, hub: data.hub };
+}
+
+
+export async function downloadCampaignExport(
+  code: string,
+  participantId: string,
+  format: "markdown" | "html"
+): Promise<void> {
+  const params = new URLSearchParams({ participantId, format });
+  const res = await fetch(
+    apiUrl(`/api/sessions/${encodeURIComponent(code.toUpperCase())}/export?${params}`),
+    { headers: authHeaders() }
+  );
+  if (!res.ok) throw new Error(await parseError(res, "No se pudo exportar"));
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${code.toUpperCase()}-campana.${format === "html" ? "html" : "md"}`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function suggestNpc(
+  code: string,
+  participantId: string,
+  hint?: string
+): Promise<NpcSuggestion> {
+  const res = await fetch(
+    apiUrl(`/api/sessions/${encodeURIComponent(code.toUpperCase())}/hub/suggest-npc`),
+    {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ participantId, hint }),
+    }
+  );
+  const data = await readJson<{ ok?: boolean; error?: string; suggestion?: NpcSuggestion }>(res);
+  if (!res.ok) throw new Error(data.error ?? "Error IA");
+  if (!data.suggestion) throw new Error("Sin sugerencia");
+  return data.suggestion;
 }
 
 export async function updateCharacter(

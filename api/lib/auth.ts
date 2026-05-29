@@ -2,6 +2,7 @@ import { customAlphabet } from "nanoid";
 import type { User } from "./types.js";
 import * as userDb from "./db/users.js";
 import { isMongoConfigured } from "./db/client.js";
+import { checkRateLimit } from "./rateLimit.js";
 
 const codeGen = customAlphabet("0123456789", 6);
 const tokenGen = customAlphabet(
@@ -31,6 +32,14 @@ export async function requestLoginCode(
   const normalized = normalizeEmail(email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
     return { ok: false, error: "Email inválido" };
+  }
+
+  const limit = checkRateLimit(`auth:${normalized}`, 5, 15 * 60 * 1000);
+  if (!limit.allowed) {
+    return {
+      ok: false,
+      error: `Demasiados intentos. Espera ${limit.retryAfterSec ?? 60} segundos.`,
+    };
   }
 
   const code = codeGen();

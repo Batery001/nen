@@ -12,5 +12,8 @@ export function ensureHubFields(session: GameSession): GameSession {
   for (const p of session.participants) {
     if (p.connected === undefined) p.connected = true;
   }
+  for (const ps of session.playSessions) {
+    if (!ps.transcriptStatus) ps.transcriptStatus = "idle";
+  }
   return session;
 }

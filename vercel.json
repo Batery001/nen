@@ -4,5 +4,10 @@
   "buildCommand": "npm run build --prefix client",
   "outputDirectory": "client/dist",
   "framework": null,
+  "functions": {
+    "api/sessions/[code]/[[...rest]].ts": {
+      "maxDuration": 60
+    }
+  },
   "rewrites": [{ "source": "/((?!api).*)", "destination": "/index.html" }]
 }

@@ -5,8 +5,22 @@ import type {
   HubMasterPatch,
   HubView,
   Participant,
+  PlaySessionRecord,
 } from "./types.js";
+
+function playSessionForPlayers(ps: PlaySessionRecord): PlaySessionRecord {
+  const { transcript, transcriptStatus, transcriptError, aiProposal, ...rest } = ps;
+  return rest;
+}
+import { buildCampaignTimeline } from "./timeline.js";
 import { ensureHubFields } from "./migrate.js";
+
+function inviteUrlFor(code: string): string {
+  const base =
+    process.env.PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:5173");
+  return `${base.replace(/\/$/, "")}/unirse?code=${encodeURIComponent(code)}`;
+}
 import { ensurePendingRequests } from "./joinRequests.js";
 import {
   canAccessHub as membershipCanAccess,
@@ -66,8 +80,10 @@ export function buildHubView(
       participants: s.participants.map((p) => ({ ...p })),
       wiki: [...s.wiki],
       playSessions: [...s.playSessions],
+      timeline: buildCampaignTimeline(s),
       characters: [...s.characters],
       pendingJoinRequests: ensurePendingRequests(s).filter((r) => r.status === "pending"),
+      inviteUrl: inviteUrlFor(s.code),
     };
   }
 
@@ -77,7 +93,7 @@ export function buildHubView(
       ...base,
       myCharacter: { ...myCharacter },
       wiki: s.wiki.filter((w) => !w.masterOnly),
-      playSessions: s.playSessions.filter((p) => p.published),
+      playSessions: s.playSessions.filter((p) => p.published).map(playSessionForPlayers),
     };
   }
 
@@ -86,7 +102,10 @@ export function buildHubView(
     campaignSummary: s.campaignSummary || "Aún no hay resumen publicado.",
     playSessions: s.playSessions
       .filter((p) => p.published)
-      .map((p) => ({ ...p, summary: p.summary || "Sin resumen escrito." })),
+      .map((p) => ({
+        ...playSessionForPlayers(p),
+        summary: p.summary || "Sin resumen escrito.",
+      })),
   };
 }
 
@@ -124,6 +143,8 @@ export function applyCharacterPatch(
   if (patch.characterName !== undefined) sheet.characterName = patch.characterName;
   if (patch.bio !== undefined) sheet.bio = patch.bio;
   if (patch.privateNotes !== undefined) sheet.privateNotes = patch.privateNotes;
+  if (patch.templateId !== undefined) sheet.templateId = patch.templateId;
+  if (patch.sheetData !== undefined) sheet.sheetData = patch.sheetData;
 
   return { ok: true, character: sheet };
 }
