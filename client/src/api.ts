@@ -113,10 +113,15 @@ export async function listMyCampaigns(): Promise<SessionListItem[]> {
 }
 
 export async function rejoinCampaign(code: string): Promise<JoinResponse> {
-  const res = await fetch(
-    apiUrl(`/api/sessions/${encodeURIComponent(code.toUpperCase())}/rejoin`),
-    { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }) }
-  );
+  const params = new URLSearchParams({
+    action: "rejoin",
+    code: code.toUpperCase(),
+  });
+  const res = await fetch(apiUrl(`/api/sessions?${params}`), {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: "{}",
+  });
   const data = await readJson<JoinResponse>(res);
   if (!res.ok) throw new Error(data.error ?? "No se pudo reingresar");
   return data;
@@ -179,11 +184,13 @@ export async function leaveSession(code: string, participantId: string): Promise
   }
 }
 
-function hubUrl(code: string, participantId: string, path = "hub"): string {
-  const base = apiUrl(
-    `/api/sessions/${encodeURIComponent(code.toUpperCase())}/${path}`
-  );
-  return `${base}?participantId=${encodeURIComponent(participantId)}`;
+function hubQueryUrl(code: string, participantId: string): string {
+  const params = new URLSearchParams({
+    action: "hub",
+    code: code.toUpperCase(),
+    participantId,
+  });
+  return apiUrl(`/api/sessions?${params}`);
 }
 
 function assertHubView(data: unknown): HubView {
@@ -205,7 +212,7 @@ function assertHubView(data: unknown): HubView {
 }
 
 export async function fetchHub(code: string, participantId: string): Promise<HubView> {
-  const res = await fetch(hubUrl(code, participantId), {
+  const res = await fetch(hubQueryUrl(code, participantId), {
     headers: authHeaders({ Accept: "application/json" }),
   });
   if (!res.ok) throw new Error(await parseError(res, "No se pudo cargar el hub"));
@@ -217,7 +224,7 @@ export async function updateHub(
   participantId: string,
   patch: HubMasterPatch
 ): Promise<HubView> {
-  const res = await fetch(hubUrl(code, participantId), {
+  const res = await fetch(hubQueryUrl(code, participantId), {
     method: "PATCH",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(patch),
@@ -430,11 +437,14 @@ export async function updateCharacter(
   patch: CharacterPatch,
   targetParticipantId?: string
 ): Promise<HubView> {
-  const res = await fetch(hubUrl(code, participantId, "hub/character"), {
+  const base = apiUrl(
+    `/api/sessions/${encodeURIComponent(code.toUpperCase())}/hub/character`
+  );
+  const res = await fetch(`${base}?participantId=${encodeURIComponent(participantId)}`, {
     method: "PUT",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ targetParticipantId, patch }),
   });
   if (!res.ok) throw new Error(await parseError(res, "No se pudo guardar personaje"));
-  return readJson(res);
+  return assertHubView(await readJson(res));
 }

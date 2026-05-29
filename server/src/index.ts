@@ -15,6 +15,11 @@ import { campaignShouldPersist, ensureOwnerParticipant, reconnectParticipant } f
 import { ensureHubFields } from "../../api/lib/migrate.js";
 import { getUserFromAuthHeader } from "../../api/lib/requestAuth.js";
 import {
+  handleHubGetRequest,
+  handleHubPatchRequest,
+  handleRejoinRequest,
+} from "../../api/lib/sessionRoutes.js";
+import {
   createSessionData,
   joinSessionData,
   leaveSessionData,
@@ -130,7 +135,16 @@ app.get("/api/campaigns/mine", async (req, res) => {
   res.json({ sessions });
 });
 
-app.get("/api/sessions", async (_req, res) => {
+app.get("/api/sessions", async (req, res) => {
+  const action = req.query.action as string | undefined;
+  const code = (req.query.code as string | undefined)?.toUpperCase().trim();
+  const participantId = req.query.participantId as string | undefined;
+
+  if (action === "hub" && code && participantId) {
+    await handleHubGetRequest(req as never, res as never, code, participantId);
+    return;
+  }
+
   try {
     const sessions = await listSessionItems({ explore: true });
     res.json({ sessions });
@@ -140,7 +154,28 @@ app.get("/api/sessions", async (_req, res) => {
   }
 });
 
+app.patch("/api/sessions", async (req, res) => {
+  const action = req.query.action as string | undefined;
+  const code = (req.query.code as string | undefined)?.toUpperCase().trim();
+  const participantId = req.query.participantId as string | undefined;
+
+  if (action === "hub" && code && participantId) {
+    await handleHubPatchRequest(req as never, res as never, code, participantId);
+    return;
+  }
+
+  res.status(405).json({ error: "Método no permitido" });
+});
+
 app.post("/api/sessions", async (req, res) => {
+  const action = req.query.action as string | undefined;
+  const code = (req.query.code as string | undefined)?.toUpperCase().trim();
+
+  if (action === "rejoin" && code) {
+    await handleRejoinRequest(req as never, res as never, code);
+    return;
+  }
+
   try {
     const user = await getUserFromAuthHeader(req.headers.authorization);
     const body = req.body as JoinRequest;

@@ -17,7 +17,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
 
   return res.status(200).json({
     ok: true,
-    api: "niku-2",
+    api: "niku-3",
     mongo: mongo ? (dbOk ? "connected" : "error") : "not_configured",
     ...(dbError && { dbError }),
   });

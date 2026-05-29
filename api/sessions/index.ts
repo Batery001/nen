@@ -1,15 +1,56 @@
 /**
- * GET /api/sessions — explorar mesas (?mine=1 para las tuyas)
- * POST /api/sessions — crear campaña
+ * GET /api/sessions — explorar (?mine=1) | hub (?action=hub&code=&participantId=)
+ * POST /api/sessions — crear | rejoin (?action=rejoin&code=)
+ * PATCH /api/sessions — hub master (?action=hub&code=&participantId=)
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ensureOwnerParticipant } from "../lib/membership.js";
 import { getUserFromRequest } from "../lib/requestAuth.js";
+import {
+  handleHubGetRequest,
+  handleHubPatchRequest,
+  handleRejoinRequest,
+} from "../lib/sessionRoutes.js";
 import { createSessionData, toSnapshot } from "../lib/sessions.js";
 import type { JoinRequest } from "../lib/types.js";
 import { getSessionByCode, listSessionItems, saveSession, usingMongo } from "../lib/store.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const action = typeof req.query.action === "string" ? req.query.action : undefined;
+  const code = typeof req.query.code === "string" ? req.query.code.toUpperCase().trim() : "";
+  const participantId =
+    typeof req.query.participantId === "string" ? req.query.participantId : undefined;
+
+  if (action === "hub" && code && participantId) {
+    try {
+      if (req.method === "GET") {
+        await handleHubGetRequest(req, res, code, participantId);
+        return;
+      }
+      if (req.method === "PATCH") {
+        await handleHubPatchRequest(req, res, code, participantId);
+        return;
+      }
+      res.setHeader("Allow", "GET, PATCH");
+      return res.status(405).json({ error: "Método no permitido" });
+    } catch (err) {
+      console.error("hub via /api/sessions", err);
+      const message = err instanceof Error ? err.message : "Error";
+      return res.status(500).json({ error: message });
+    }
+  }
+
+  if (action === "rejoin" && code) {
+    try {
+      await handleRejoinRequest(req, res, code);
+      return;
+    } catch (err) {
+      console.error("rejoin via /api/sessions", err);
+      const message = err instanceof Error ? err.message : "Error al reingresar";
+      return res.status(500).json({ ok: false, error: message });
+    }
+  }
+
   if (req.method === "GET") {
     try {
       const mine = req.query.mine === "1" || req.query.mine === "true";
@@ -24,7 +65,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const items = await listSessionItems({ memberUserId: user.id });
         return res.status(200).json({ sessions: items });
       }
-      // Explorar: todas excepto privadas (public + unlisted + legacy sin visibility)
       const items = await listSessionItems({ explore: true });
       return res.status(200).json({ sessions: items });
     } catch (err) {
@@ -35,7 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method !== "POST") {
-    res.setHeader("Allow", "GET, POST");
+    res.setHeader("Allow", "GET, POST, PATCH");
     return res.status(405).json({ error: "Método no permitido" });
   }
 
