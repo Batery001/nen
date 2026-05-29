@@ -7,6 +7,9 @@
   "functions": {
     "api/sessions/[code]/[[...rest]].ts": {
       "maxDuration": 60
+    },
+    "api/sessions/[code]/rejoin.ts": {
+      "maxDuration": 10
     }
   },
   "rewrites": [{ "source": "/((?!api).*)", "destination": "/index.html" }]

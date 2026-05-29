@@ -38,10 +38,28 @@ function parseBody<T>(req: VercelRequest): T {
   return (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as T;
 }
 
+function pathnameFrom(req: VercelRequest): string {
+  const url = req.url ?? "";
+  try {
+    return new URL(url, "http://localhost").pathname;
+  } catch {
+    const q = url.indexOf("?");
+    return q >= 0 ? url.slice(0, q) : url;
+  }
+}
+
 function segmentsFrom(req: VercelRequest): string[] {
   const raw = req.query.rest;
-  if (!raw) return [];
-  return Array.isArray(raw) ? raw : [raw];
+  if (raw !== undefined && raw !== null && raw !== "") {
+    const segs = (Array.isArray(raw) ? raw : [raw]).filter(Boolean);
+    if (segs.length > 0) return segs;
+  }
+  const code = (req.query.code as string | undefined)?.toUpperCase();
+  if (code) {
+    const m = pathnameFrom(req).match(/^\/api\/sessions\/[^/]+\/(.+)$/i);
+    if (m?.[1]) return m[1].split("/").filter(Boolean);
+  }
+  return [];
 }
 
 function participantIdFrom(req: VercelRequest): string | undefined {
@@ -50,7 +68,7 @@ function participantIdFrom(req: VercelRequest): string | undefined {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const code = req.query.code as string;
+  const code = (req.query.code as string)?.toUpperCase().trim();
   if (!code) return res.status(400).json({ error: "Código requerido" });
 
   const segments = segmentsFrom(req);
