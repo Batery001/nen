@@ -307,6 +307,40 @@ export async function processPlaySessionAudio(
   return { transcript: data.transcript, proposal: data.proposal, hub: data.hub };
 }
 
+export async function uploadCampaignAudioFile(
+  code: string,
+  participantId: string,
+  file: File
+): Promise<{ audioUrl: string; hub: HubView }> {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const params = new URLSearchParams({
+    action: "upload-campaign-audio",
+    code: code.toUpperCase(),
+    participantId,
+  });
+  const res = await fetch(apiUrl(`/api/sessions?${params}`), {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      participantId,
+      audioBase64: btoa(binary),
+      audioMimeType: file.type || "audio/mpeg",
+    }),
+  });
+  const data = await readJson<{
+    ok?: boolean;
+    error?: string;
+    audioUrl?: string;
+    hub?: HubView;
+  }>(res);
+  if (!res.ok) throw new Error(data.error ?? "No se pudo subir el audio");
+  if (!data.audioUrl || !data.hub) throw new Error("Respuesta incompleta");
+  return { audioUrl: data.audioUrl, hub: data.hub };
+}
+
 export async function uploadPlaySessionAudio(
   code: string,
   participantId: string,

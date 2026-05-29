@@ -5,6 +5,7 @@ import { ensureHubFields } from "./migrate.js";
 import { getUserFromRequest } from "./requestAuth.js";
 import { rejoinCampaign } from "./sessions.js";
 import type { HubMasterPatch } from "./types.js";
+import { uploadCampaignLevelAudio, isBlobConfigured } from "./blobStorage.js";
 import { uploadPlaySessionAudioFile } from "./sessionAudio.js";
 import { getSessionByCode, saveSession } from "./store.js";
 
@@ -152,6 +153,71 @@ export async function handleUploadAudioRequest(
     res.status(200).json({
       ok: true,
       audioUrl,
+      hub: buildHubView(session, participantId, user?.id),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error al subir";
+    res.status(400).json({ ok: false, error: message });
+  }
+}
+
+export async function handleUploadCampaignAudioRequest(
+  req: VercelRequest,
+  res: VercelResponse,
+  code: string
+): Promise<void> {
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    res.status(405).json({ error: "Método no permitido" });
+    return;
+  }
+
+  const body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as {
+    participantId?: string;
+    audioBase64?: string;
+    audioMimeType?: string;
+  };
+
+  const participantId = body.participantId;
+  if (!participantId) {
+    res.status(400).json({ error: "participantId requerido" });
+    return;
+  }
+
+  const session = await getSessionByCode(code);
+  if (!session) {
+    res.status(404).json({ error: "Partida no encontrada" });
+    return;
+  }
+
+  const user = await getUserFromRequest(req);
+  if (!requireMaster(session, participantId, user?.id)) {
+    res.status(403).json({ error: "Solo el master puede subir audio" });
+    return;
+  }
+
+  if (!body.audioBase64) {
+    res.status(400).json({ error: "audioBase64 requerido" });
+    return;
+  }
+
+  if (!isBlobConfigured()) {
+    res.status(400).json({
+      ok: false,
+      error: "Configura BLOB_READ_WRITE_TOKEN en Vercel para subir archivos de audio",
+    });
+    return;
+  }
+
+  try {
+    const buffer = Buffer.from(body.audioBase64, "base64");
+    const url = await uploadCampaignLevelAudio(code, buffer, body.audioMimeType ?? "audio/mpeg");
+    session.campaignAudioUrl = url;
+    await saveSession(session);
+    res.setHeader("X-Niku-Route", "sessions-index-upload-campaign-audio");
+    res.status(200).json({
+      ok: true,
+      audioUrl: url,
       hub: buildHubView(session, participantId, user?.id),
     });
   } catch (err) {

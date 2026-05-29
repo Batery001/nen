@@ -33,3 +33,35 @@ export async function uploadCampaignAudio(
 
   return blob.url;
 }
+
+export async function uploadCampaignLevelAudio(
+  campaignCode: string,
+  buffer: Buffer,
+  contentType: string
+): Promise<string> {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) {
+    throw new Error(
+      "Configura BLOB_READ_WRITE_TOKEN en Vercel (Storage → Blob) para subir audios"
+    );
+  }
+
+  const { put } = await import("@vercel/blob");
+  const ext = contentType.includes("mpeg")
+    ? "mp3"
+    : contentType.includes("wav")
+      ? "wav"
+      : contentType.includes("ogg")
+        ? "ogg"
+        : "audio";
+  const pathname = `campaigns/${campaignCode.toUpperCase()}/campaign-audio/${Date.now()}.${ext}`;
+
+  const blob = await put(pathname, buffer, {
+    access: "public",
+    contentType: contentType || "audio/mpeg",
+    token,
+  });
+
+  return blob.url;
+}
+

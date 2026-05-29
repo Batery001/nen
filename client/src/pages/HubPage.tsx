@@ -12,6 +12,7 @@ import {
   updateCharacter,
   updateHub,
   updatePlaySessionProposal,
+  uploadCampaignAudioFile,
   uploadPlaySessionAudio,
 } from "../api";
 import { CampaignTimeline } from "../components/CampaignTimeline";
@@ -99,6 +100,8 @@ function MasterHub({
   const [npcLoading, setNpcLoading] = useState(false);
   const [npcSuggestion, setNpcSuggestion] = useState<NpcSuggestion | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [uploadingCampaignAudio, setUploadingCampaignAudio] = useState(false);
+  const campaignAudioInputRef = useRef<HTMLInputElement>(null);
 
   async function handleJoinRequest(requestId: string, action: "approve" | "reject") {
     setResolvingId(requestId);
@@ -307,14 +310,57 @@ function MasterHub({
           onChange={(e) => setSummary(e.target.value)}
           placeholder="Resumen para jugadores y observadores..."
         />
-        <label className="block text-sm text-[var(--color-mist)]">URL audio campaña</label>
-        <input
-          className="w-full rounded-lg border border-[var(--color-slate-border)] bg-[#121018] px-3 py-2 text-sm"
-          value={audioUrl}
-          onChange={(e) => setAudioUrl(e.target.value)}
-          placeholder="https://..."
-        />
-        <AudioBlock url={audioUrl} label="Vista previa" />
+        <div className="space-y-2">
+          <label className="block text-sm text-[var(--color-mist)]">
+            Audio de campaña (audiolibro / resumen general)
+          </label>
+          <input
+            ref={campaignAudioInputRef}
+            type="file"
+            accept="audio/*,.mp3,.m4a,.wav,.ogg,.webm"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setUploadingCampaignAudio(true);
+              void uploadCampaignAudioFile(hub.code, hub.participantId, file)
+                .then(({ audioUrl: url, hub: refreshed }) => {
+                  setAudioUrl(url);
+                  setMsg("Audio subido. Pulsa Guardar campaña si cambiaste más cosas.");
+                  setMsgError(false);
+                  onRefresh();
+                  if (refreshed.campaignAudioUrl) setAudioUrl(refreshed.campaignAudioUrl);
+                })
+                .catch((err) => {
+                  setMsgError(true);
+                  setMsg(err instanceof Error ? err.message : "Error al subir");
+                })
+                .finally(() => {
+                  setUploadingCampaignAudio(false);
+                  e.target.value = "";
+                });
+            }}
+          />
+          <button
+            type="button"
+            disabled={uploadingCampaignAudio}
+            onClick={() => campaignAudioInputRef.current?.click()}
+            className="w-full rounded-lg border border-[var(--color-gold)]/60 py-2.5 text-sm text-[var(--color-gold)] hover:bg-[var(--color-gold)]/10"
+          >
+            {uploadingCampaignAudio ? "Subiendo…" : "Subir archivo de audio"}
+          </button>
+          <p className="text-xs text-[var(--color-mist)]">o pega una URL abajo</p>
+          <input
+            className="w-full rounded-lg border border-[var(--color-slate-border)] bg-[#121018] px-3 py-2 text-sm"
+            value={audioUrl}
+            onChange={(e) => setAudioUrl(e.target.value)}
+            placeholder="https://..."
+          />
+          <AudioBlock url={audioUrl} label="Vista previa" />
+          <p className="text-xs text-[var(--color-mist)]">
+            Para transcribir una sesión con IA, baja a <strong className="text-[var(--color-parchment)]">Sesiones jugadas</strong> → + Sesión → subir audio ahí.
+          </p>
+        </div>
         <label className="block text-sm text-[var(--color-mist)]">Visibilidad</label>
         <select
           className="w-full rounded-lg border border-[var(--color-slate-border)] bg-[#121018] px-3 py-2 text-sm"

@@ -11,6 +11,7 @@ import {
   handleHubPatchRequest,
   handleRejoinRequest,
   handleUploadAudioRequest,
+  handleUploadCampaignAudioRequest,
 } from "../lib/sessionRoutes.js";
 import { createSessionData, toSnapshot } from "../lib/sessions.js";
 import type { JoinRequest } from "../lib/types.js";
@@ -61,6 +62,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     } catch (err) {
       console.error("upload-audio via /api/sessions", err);
+      const message = err instanceof Error ? err.message : "Error al subir";
+      return res.status(500).json({ ok: false, error: message });
+    }
+  }
+
+  if (action === "upload-campaign-audio" && code && participantId) {
+    try {
+      await handleUploadCampaignAudioRequest(req, res, code);
+      return;
+    } catch (err) {
+      console.error("upload-campaign-audio via /api/sessions", err);
       const message = err instanceof Error ? err.message : "Error al subir";
       return res.status(500).json({ ok: false, error: message });
     }
