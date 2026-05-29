@@ -37,7 +37,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         reconnectParticipant(me);
         await saveSession(session);
       }
-      return res.status(200).json(buildHubView(session, participantId, user?.id));
+      const view = buildHubView(session, participantId, user?.id);
+      res.setHeader("X-Niku-Route", "hub-dedicated");
+      return res.status(200).json(view);
     }
 
     if (req.method === "PATCH") {

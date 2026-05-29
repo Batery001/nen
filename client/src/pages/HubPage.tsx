@@ -981,33 +981,40 @@ export function HubPage() {
   const participantId = stored?.participantId;
 
   const load = useCallback(async () => {
-    if (!code || !participantId) return;
+    if (!code) return;
+
+    let activeParticipantId = participantId;
+
+    if (user) {
+      try {
+        const result = await rejoinCampaign(code);
+        if (result.ok && result.you && result.session) {
+          const p = result.session.participants.find((x) => x.id === result.you!.participantId);
+          activeParticipantId = result.you.participantId;
+          saveStoredSession({
+            sessionId: result.session.id,
+            code: result.session.code,
+            participantId: result.you.participantId,
+            role: result.you.role,
+            name: p?.name ?? user.displayName,
+          });
+        }
+      } catch {
+        /* usar participantId guardado */
+      }
+    }
+
+    if (!activeParticipantId) {
+      setHub(null);
+      return;
+    }
+
     try {
-      const data = await fetchHub(code, participantId);
+      const data = await fetchHub(code, activeParticipantId);
       setHub(data);
       setError(null);
     } catch (e) {
-      if (user) {
-        try {
-          const result = await rejoinCampaign(code);
-          if (result.ok && result.you && result.session) {
-            const p = result.session.participants.find((x) => x.id === result.you!.participantId);
-            saveStoredSession({
-              sessionId: result.session.id,
-              code: result.session.code,
-              participantId: result.you.participantId,
-              role: result.you.role,
-              name: p?.name ?? user.displayName,
-            });
-            const data = await fetchHub(code, result.you.participantId);
-            setHub(data);
-            setError(null);
-            return;
-          }
-        } catch {
-          /* fall through */
-        }
-      }
+      setHub(null);
       setError(e instanceof Error ? e.message : "Error al cargar");
     }
   }, [code, participantId, user]);
@@ -1108,9 +1115,18 @@ export function HubPage() {
     );
   }
 
+  const displayStored = code ? loadStoredSessionForCode(code) : stored;
+  const effectiveRole = hub?.role ?? displayStored?.role;
+
   if (!hub) {
     return <p className="text-center text-[var(--color-mist)]">Cargando hub…</p>;
   }
+
+  const hubForUi: HubView = {
+    ...hub,
+    role: effectiveRole ?? hub.role,
+    participantId: hub.participantId || displayStored?.participantId || "",
+  };
 
   return (
     <div className="space-y-6">
@@ -1119,7 +1135,8 @@ export function HubPage() {
           <p className="text-xs text-[var(--color-mist)]">Código {hub.code}</p>
           <h1 className="font-display text-2xl text-[var(--color-gold)]">{hub.campaignTitle}</h1>
           <p className="text-sm text-[var(--color-mist)]">
-            Tú: {stored!.name} · {ROLE_LABELS[hub.role]}
+            Tú: {displayStored?.name ?? "—"} ·{" "}
+            {effectiveRole ? ROLE_LABELS[effectiveRole] : "…"}
             {hub.isOwner && " · Dueño"}
           </p>
         </div>
@@ -1133,10 +1150,10 @@ export function HubPage() {
         </button>
       </div>
 
-      {!hub.role && (
+      {!effectiveRole && (
         <div className="space-y-3 rounded-lg border border-red-900/50 bg-red-950/30 p-4 text-sm">
           <p className="text-red-200">
-            No se pudo cargar la vista de la campaña (respuesta incompleta del servidor).
+            No se pudo cargar tu rol en la campaña. Pulsa Reintentar o vuelve a entrar desde Mis campañas.
           </p>
           <button
             type="button"
@@ -1147,9 +1164,9 @@ export function HubPage() {
           </button>
         </div>
       )}
-      {hub.role === "master" && <MasterHub hub={hub} onRefresh={load} />}
-      {hub.role === "player" && <PlayerHub hub={hub} onRefresh={load} />}
-      {hub.role === "observer" && <ObserverHub hub={hub} />}
+      {effectiveRole === "master" && <MasterHub hub={hubForUi} onRefresh={load} />}
+      {effectiveRole === "player" && <PlayerHub hub={hubForUi} onRefresh={load} />}
+      {effectiveRole === "observer" && <ObserverHub hub={hubForUi} />}
     </div>
   );
 }

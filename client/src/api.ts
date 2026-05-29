@@ -186,16 +186,30 @@ function hubUrl(code: string, participantId: string, path = "hub"): string {
   return `${base}?participantId=${encodeURIComponent(participantId)}`;
 }
 
-export async function fetchHub(code: string, participantId: string): Promise<HubView> {
-  const res = await fetch(hubUrl(code, participantId), { headers: authHeaders() });
-  if (!res.ok) throw new Error(await parseError(res, "No se pudo cargar el hub"));
-  const data = await readJson<HubView>(res);
-  if (!data.role || !data.participantId) {
+function assertHubView(data: unknown): HubView {
+  if (!data || typeof data !== "object") {
+    throw new Error("Respuesta del hub inválida");
+  }
+  const d = data as HubView & { rolesAvailable?: unknown };
+  if ("rolesAvailable" in d && !d.role) {
     throw new Error(
-      "El servidor devolvió datos incorrectos. Si estás en Vercel, espera el último deploy o borra VITE_API_URL en variables de entorno."
+      "La API devolvió un snapshot en lugar del hub. En Vercel: redeploy del último commit (rutas /hub dedicadas)."
     );
   }
-  return data;
+  if (!d.role || !d.participantId) {
+    throw new Error(
+      "Hub incompleto (falta rol). Desconecta y entra otra vez desde Mis campañas."
+    );
+  }
+  return d;
+}
+
+export async function fetchHub(code: string, participantId: string): Promise<HubView> {
+  const res = await fetch(hubUrl(code, participantId), {
+    headers: authHeaders({ Accept: "application/json" }),
+  });
+  if (!res.ok) throw new Error(await parseError(res, "No se pudo cargar el hub"));
+  return assertHubView(await readJson(res));
 }
 
 export async function updateHub(
@@ -209,7 +223,7 @@ export async function updateHub(
     body: JSON.stringify(patch),
   });
   if (!res.ok) throw new Error(await parseError(res, "No se pudo guardar"));
-  return readJson(res);
+  return assertHubView(await readJson(res));
 }
 
 export async function getJoinRequestStatus(
