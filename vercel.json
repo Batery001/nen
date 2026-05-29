@@ -12,5 +12,11 @@
       "maxDuration": 10
     }
   },
-  "rewrites": [{ "source": "/((?!api).*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/api/sessions/:code/rejoin",
+      "destination": "/api/sessions?action=rejoin&code=:code"
+    },
+    { "source": "/((?!api).*)", "destination": "/index.html" }
+  ]
 }
