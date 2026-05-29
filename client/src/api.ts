@@ -317,20 +317,20 @@ export async function uploadPlaySessionAudio(
   const bytes = new Uint8Array(buf);
   let binary = "";
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  const res = await fetch(
-    apiUrl(
-      `/api/sessions/${encodeURIComponent(code.toUpperCase())}/play-sessions/${encodeURIComponent(playSessionId)}/upload-audio`
-    ),
-    {
-      method: "POST",
-      headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({
-        participantId,
-        audioBase64: btoa(binary),
-        audioMimeType: file.type || "audio/mpeg",
-      }),
-    }
-  );
+  const params = new URLSearchParams({
+    action: "upload-audio",
+    code: code.toUpperCase(),
+    playSessionId,
+  });
+  const res = await fetch(apiUrl(`/api/sessions?${params}`), {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      participantId,
+      audioBase64: btoa(binary),
+      audioMimeType: file.type || "audio/mpeg",
+    }),
+  });
   const data = await readJson<{
     ok?: boolean;
     error?: string;

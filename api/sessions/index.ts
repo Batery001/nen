@@ -10,6 +10,7 @@ import {
   handleHubGetRequest,
   handleHubPatchRequest,
   handleRejoinRequest,
+  handleUploadAudioRequest,
 } from "../lib/sessionRoutes.js";
 import { createSessionData, toSnapshot } from "../lib/sessions.js";
 import type { JoinRequest } from "../lib/types.js";
@@ -47,6 +48,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (err) {
       console.error("rejoin via /api/sessions", err);
       const message = err instanceof Error ? err.message : "Error al reingresar";
+      return res.status(500).json({ ok: false, error: message });
+    }
+  }
+
+  const playSessionId =
+    typeof req.query.playSessionId === "string" ? req.query.playSessionId : undefined;
+
+  if (action === "upload-audio" && code && playSessionId) {
+    try {
+      await handleUploadAudioRequest(req, res, code, playSessionId);
+      return;
+    } catch (err) {
+      console.error("upload-audio via /api/sessions", err);
+      const message = err instanceof Error ? err.message : "Error al subir";
       return res.status(500).json({ ok: false, error: message });
     }
   }

@@ -18,6 +18,7 @@ import {
   handleHubGetRequest,
   handleHubPatchRequest,
   handleRejoinRequest,
+  handleUploadAudioRequest,
 } from "../../api/lib/sessionRoutes.js";
 import {
   createSessionData,
@@ -173,6 +174,12 @@ app.post("/api/sessions", async (req, res) => {
 
   if (action === "rejoin" && code) {
     await handleRejoinRequest(req as never, res as never, code);
+    return;
+  }
+
+  const playSessionId = req.query.playSessionId as string | undefined;
+  if (action === "upload-audio" && code && playSessionId) {
+    await handleUploadAudioRequest(req as never, res as never, code, playSessionId);
     return;
   }
 

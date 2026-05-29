@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   applyPlaySessionProposal,
@@ -431,6 +431,12 @@ function MasterHub({
             + Sesión
           </button>
         </div>
+        {playSessions.length === 0 && (
+          <p className="text-sm text-[var(--color-mist)] rounded-lg border border-dashed border-[var(--color-slate-border)] p-4">
+            Pulsa <strong className="text-[var(--color-gold)]">+ Sesión</strong> para registrar una
+            partida y subir el audio de esa sesión.
+          </p>
+        )}
         {playSessions.map((ps, i) => (
           <PlaySessionEditor
             key={ps.id}
@@ -555,6 +561,7 @@ function PlaySessionEditor({
   const [draftProposal, setDraftProposal] = useState<SessionAiProposal | null>(
     session.aiProposal ?? null
   );
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setDraftProposal(session.aiProposal ?? null);
@@ -689,23 +696,37 @@ function PlaySessionEditor({
         Publicado (visible para jugadores y observadores)
       </label>
 
-      <div className="border-t border-[var(--color-slate-border)] pt-3 space-y-2">
-        <p className="text-sm font-medium text-[var(--color-gold)]">Audio → transcripción → wiki</p>
+      <div className="border-t border-[var(--color-slate-border)] pt-3 space-y-3">
+        <p className="text-sm font-medium text-[var(--color-gold)]">Audio de esta sesión</p>
         <p className="text-xs text-[var(--color-mist)]">
-          Sube la grabación de la sesión terminada. La IA genera resumen, lugares, objetos y notas de PJ.
-          Requiere <code className="text-[var(--color-parchment)]">OPENAI_API_KEY</code> en el servidor.
+          1) Sube el archivo o pega una URL · 2) Procesar con IA · 3) Aplicar al hub.
+          Necesitas <code className="text-[var(--color-parchment)]">OPENAI_API_KEY</code> y{" "}
+          <code className="text-[var(--color-parchment)]">BLOB_READ_WRITE_TOKEN</code> en Vercel.
         </p>
 
         <input
+          ref={fileInputRef}
           type="file"
-          accept="audio/*"
+          accept="audio/*,.mp3,.m4a,.wav,.ogg,.webm"
           disabled={processing}
-          className="block w-full text-xs"
+          className="sr-only"
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) void handleFile(f);
+            e.target.value = "";
           }}
         />
+        <button
+          type="button"
+          disabled={processing}
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full rounded-lg border-2 border-dashed border-[var(--color-gold)]/50 bg-[#121018] py-4 text-sm font-medium text-[var(--color-gold)] hover:border-[var(--color-gold)]"
+        >
+          {processing ? "Subiendo…" : "Subir archivo de audio (MP3, M4A, WAV…)"}
+        </button>
+        <p className="text-xs text-[var(--color-mist)]">
+          Hasta 4 MB directo; archivos más grandes usan almacenamiento en la nube (Blob).
+        </p>
 
         <div className="flex flex-wrap gap-2">
           <button
