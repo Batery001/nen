@@ -93,6 +93,7 @@ export function Home() {
   }, [user]);
 
   useEffect(() => {
+    setLoading(true);
     load();
     const id = setInterval(load, 15000);
     return () => clearInterval(id);
@@ -104,22 +105,26 @@ export function Home() {
       return;
     }
     setRejoining(mesa.code);
+    setMineError(null);
     try {
       const result = await rejoinCampaign(mesa.code);
       if (!result.ok || !result.session || !result.you) {
-        setError(result.error ?? "No se pudo reingresar");
+        setMineError(result.error ?? "No se pudo reingresar");
         return;
       }
+      const participant = result.session.participants.find(
+        (p) => p.id === result.you!.participantId
+      );
       saveStoredSession({
         sessionId: result.session.id,
         code: result.session.code,
         participantId: result.you.participantId,
         role: result.you.role,
-        name: user.displayName,
+        name: participant?.name ?? user.displayName,
       });
       navigate(`/hub/${result.session.code}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
+      setMineError(e instanceof Error ? e.message : "Error");
     } finally {
       setRejoining(null);
     }
@@ -135,19 +140,30 @@ export function Home() {
           Crea campañas con tu perfil, reingresa cuando quieras y gestiona solicitudes de
           jugadores aunque te desconectes.
         </p>
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
+          <Link
+            to="/crear"
+            className="rounded-lg bg-[var(--color-gold)] px-4 py-2 text-sm font-semibold text-[var(--color-ink)]"
+          >
+            Crear campaña
+          </Link>
+          <Link
+            to="/unirse"
+            className="rounded-lg border border-[var(--color-slate-border)] px-4 py-2 text-sm"
+          >
+            Tengo un código
+          </Link>
+        </div>
       </section>
 
       {user && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-display text-lg text-[var(--color-gold)]">Mis campañas</h3>
-            <Link
-              to="/crear"
-              className="rounded-lg bg-[var(--color-gold)] px-4 py-2 text-sm font-semibold text-[var(--color-ink)]"
-            >
-              + Crear campaña
-            </Link>
           </div>
+          {mineError && (
+            <p className="rounded-lg bg-red-950/50 px-4 py-2 text-sm text-red-200">{mineError}</p>
+          )}
           {mine.length === 0 && !loading && (
             <p className="text-sm text-[var(--color-mist)]">
               Aún no tienes campañas.{" "}
@@ -186,13 +202,13 @@ export function Home() {
 
       <section className="space-y-3">
         <h3 className="font-display text-lg text-[var(--color-parchment)]">
-          Explorar campañas
+          Explorar campañas públicas
         </h3>
+        <p className="text-xs text-[var(--color-mist)]">
+          Las campañas sin listar solo se encuentran con su código.
+        </p>
         {loading && (
           <p className="text-center text-sm text-[var(--color-mist)]">Cargando…</p>
-        )}
-        {mineError && (
-          <p className="rounded-lg bg-red-950/50 px-4 py-2 text-sm text-red-200">{mineError}</p>
         )}
         {publicError && (
           <p className="rounded-lg bg-red-950/50 px-4 py-2 text-sm text-red-200">
@@ -200,7 +216,9 @@ export function Home() {
           </p>
         )}
         {!loading && !publicError && publicMesas.length === 0 && (
-          <p className="text-sm text-[var(--color-mist)]">No hay campañas para explorar aún.</p>
+          <p className="text-sm text-[var(--color-mist)]">
+            No hay campañas públicas. Usa un código o crea la tuya.
+          </p>
         )}
         <ul className="grid gap-3 sm:grid-cols-2">
           {publicMesas.map((mesa) => (

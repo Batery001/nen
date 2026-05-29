@@ -104,6 +104,7 @@ export interface SessionSnapshot {
   id: string;
   code: string;
   createdAt: string;
+  campaignTitle?: string;
   participants: Participant[];
   rolesAvailable: {
     master: boolean;
@@ -144,12 +145,14 @@ export interface HubView {
   characters?: CharacterSheet[];
   pendingJoinRequests?: PendingJoinRequest[];
   isOwner?: boolean;
+  campaignVisibility?: CampaignVisibility;
 }
 
 export interface HubMasterPatch {
   campaignTitle?: string;
   campaignSummary?: string;
   campaignAudioUrl?: string;
+  visibility?: CampaignVisibility;
   wiki?: WikiEntry[];
   playSessions?: PlaySessionRecord[];
 }

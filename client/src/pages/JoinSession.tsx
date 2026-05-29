@@ -14,11 +14,13 @@ export function JoinSession() {
   const [role, setRole] = useState<Role>("player");
   const [preview, setPreview] = useState<SessionSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
+  const [previewHint, setPreviewHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (code.trim().length < 4) {
       setPreview(null);
+      setPreviewHint(null);
       return;
     }
 
@@ -26,17 +28,16 @@ export function JoinSession() {
       try {
         const session = await getSessionByCode(code.trim());
         setPreview(session);
-        if (!session.rolesAvailable.master && role === "master") {
-          setRole("player");
-        }
+        setPreviewHint(null);
         setError(null);
       } catch {
         setPreview(null);
+        setPreviewHint("No se encontró una partida con ese código");
       }
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [code, role]);
+  }, [code]);
 
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault();
@@ -87,7 +88,7 @@ export function JoinSession() {
     }
   }
 
-  const roles: Role[] = ["master", "player", "observer"];
+  const roles: Role[] = ["player", "observer"];
 
   return (
     <form onSubmit={handleJoin} className="space-y-6">
@@ -110,9 +111,12 @@ export function JoinSession() {
         />
         {preview && (
           <p className="mt-1 text-xs text-emerald-400/90">
-            Partida encontrada · {preview.participants.length} conectado
-            {preview.participants.length !== 1 ? "s" : ""}
+            {preview.campaignTitle ?? "Partida"} ·{" "}
+            {preview.participants.filter((p) => p.connected !== false).length} en línea
           </p>
+        )}
+        {previewHint && !preview && (
+          <p className="mt-1 text-xs text-red-300/90">{previewHint}</p>
         )}
       </label>
 
@@ -138,14 +142,6 @@ export function JoinSession() {
               key={r}
               role={r}
               selected={role === r}
-              disabled={
-                r === "master" && preview !== null && !preview.rolesAvailable.master
-              }
-              disabledHint={
-                r === "master" && preview !== null && !preview.rolesAvailable.master
-                  ? "Ya hay un master en esta partida"
-                  : undefined
-              }
               onSelect={() => setRole(r)}
             />
           ))}

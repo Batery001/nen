@@ -16,6 +16,9 @@ export interface Participant {
   name: string;
   role: Role;
   connectedAt: string;
+  connected?: boolean;
+  userId?: string;
+  isOwner?: boolean;
 }
 
 export interface CharacterSheet {
@@ -69,6 +72,7 @@ export interface SessionSnapshot {
   id: string;
   code: string;
   createdAt: string;
+  campaignTitle?: string;
   participants: Participant[];
   rolesAvailable: {
     master: boolean;
@@ -100,12 +104,20 @@ export interface HubView {
   characters?: CharacterSheet[];
   pendingJoinRequests?: PendingJoinRequest[];
   isOwner?: boolean;
+  campaignVisibility?: CampaignVisibility;
 }
+
+export const VISIBILITY_LABELS: Record<CampaignVisibility, string> = {
+  public: "Pública — aparece en explorar",
+  unlisted: "Sin listar — solo con código o enlace",
+  private: "Privada — solo miembros",
+};
 
 export interface HubMasterPatch {
   campaignTitle?: string;
   campaignSummary?: string;
   campaignAudioUrl?: string;
+  visibility?: CampaignVisibility;
   wiki?: WikiEntry[];
   playSessions?: PlaySessionRecord[];
 }

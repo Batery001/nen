@@ -31,6 +31,7 @@ export function toSnapshot(session: GameSession): SessionSnapshot {
     id: s.id,
     code: s.code,
     createdAt: s.createdAt,
+    campaignTitle: s.campaignTitle,
     participants: s.participants.map((p) => ({ ...p })),
     rolesAvailable: {
       master: !hasActiveMaster(s),
@@ -53,7 +54,7 @@ export function createSessionData(ownerUserId?: string): GameSession {
     characters: [],
     playSessions: [],
     ownerUserId,
-    visibility: "public",
+    visibility: "unlisted",
   });
 }
 

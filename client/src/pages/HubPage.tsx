@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   fetchHub,
   leaveSession,
@@ -8,11 +8,18 @@ import {
   updateCharacter,
   updateHub,
 } from "../api";
+import { StatusMessage } from "../components/StatusMessage";
 import { useAuth } from "../context/AuthContext";
-import { loadStoredSession, clearStoredSession, saveStoredSession } from "../hooks/useSessionStorage";
+import {
+  loadStoredSessionForCode,
+  clearStoredSession,
+  saveStoredSession,
+} from "../hooks/useSessionStorage";
 import {
   ROLE_LABELS,
+  VISIBILITY_LABELS,
   WIKI_TYPE_LABELS,
+  type CampaignVisibility,
   type HubView,
   type PlaySessionRecord,
   type WikiEntry,
@@ -57,8 +64,21 @@ function MasterHub({
   const [audioUrl, setAudioUrl] = useState(hub.campaignAudioUrl);
   const [wiki, setWiki] = useState(hub.wiki ?? []);
   const [playSessions, setPlaySessions] = useState(hub.playSessions ?? []);
+  const [visibility, setVisibility] = useState<CampaignVisibility>(
+    hub.campaignVisibility ?? "unlisted"
+  );
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [msgError, setMsgError] = useState(false);
+
+  useEffect(() => {
+    setTitle(hub.campaignTitle);
+    setSummary(hub.campaignSummary);
+    setAudioUrl(hub.campaignAudioUrl);
+    setWiki(hub.wiki ?? []);
+    setPlaySessions(hub.playSessions ?? []);
+    setVisibility(hub.campaignVisibility ?? "unlisted");
+  }, [hub]);
 
   const [newWikiTitle, setNewWikiTitle] = useState("");
   const [newWikiBody, setNewWikiBody] = useState("");
@@ -71,6 +91,7 @@ function MasterHub({
       await resolveJoinRequest(hub.code, hub.participantId, requestId, action);
       onRefresh();
     } catch (e) {
+      setMsgError(true);
       setMsg(e instanceof Error ? e.message : "Error al procesar solicitud");
     } finally {
       setResolvingId(null);
@@ -80,17 +101,20 @@ function MasterHub({
   async function saveCampaign() {
     setSaving(true);
     setMsg(null);
+    setMsgError(false);
     try {
       await updateHub(hub.code, hub.participantId, {
         campaignTitle: title,
         campaignSummary: summary,
         campaignAudioUrl: audioUrl,
+        visibility,
         wiki,
         playSessions,
       });
       setMsg("Guardado");
       onRefresh();
     } catch (e) {
+      setMsgError(true);
       setMsg(e instanceof Error ? e.message : "Error");
     } finally {
       setSaving(false);
@@ -195,6 +219,18 @@ function MasterHub({
           placeholder="https://..."
         />
         <AudioBlock url={audioUrl} label="Vista previa" />
+        <label className="block text-sm text-[var(--color-mist)]">Visibilidad</label>
+        <select
+          className="w-full rounded-lg border border-[var(--color-slate-border)] bg-[#121018] px-3 py-2 text-sm"
+          value={visibility}
+          onChange={(e) => setVisibility(e.target.value as CampaignVisibility)}
+        >
+          {(Object.keys(VISIBILITY_LABELS) as CampaignVisibility[]).map((v) => (
+            <option key={v} value={v}>
+              {VISIBILITY_LABELS[v]}
+            </option>
+          ))}
+        </select>
       </section>
 
       <section className="space-y-3">
@@ -225,6 +261,13 @@ function MasterHub({
                 </label>
               </div>
               <p className="mt-1 text-sm text-[var(--color-mist)]">{w.body}</p>
+              <button
+                type="button"
+                onClick={() => setWiki(wiki.filter((x) => x.id !== w.id))}
+                className="mt-2 text-xs text-red-400/90 hover:underline"
+              >
+                Eliminar
+              </button>
             </li>
           ))}
         </ul>
@@ -288,8 +331,10 @@ function MasterHub({
         <h2 className="font-display text-lg text-[var(--color-gold)] mb-2">Mesa</h2>
         <ul className="text-sm space-y-1">
           {hub.participants?.map((p) => (
-            <li key={p.id}>
+            <li key={p.id} className={p.connected === false ? "opacity-60" : ""}>
               {p.name} — {ROLE_LABELS[p.role]}
+              {p.isOwner && " (dueño)"}
+              {p.connected === false ? " · desconectado" : " · en línea"}
             </li>
           ))}
         </ul>
@@ -303,7 +348,7 @@ function MasterHub({
       >
         {saving ? "Guardando…" : "Guardar campaña"}
       </button>
-      {msg && <p className="text-center text-sm text-emerald-400">{msg}</p>}
+      {msg && <StatusMessage message={msg} variant={msgError ? "error" : "success"} />}
     </div>
   );
 }
@@ -353,12 +398,29 @@ function PlayerHub({
   hub: HubView;
   onRefresh: () => void;
 }) {
-  const c = hub.myCharacter!;
-  const [characterName, setCharacterName] = useState(c.characterName);
-  const [bio, setBio] = useState(c.bio);
-  const [privateNotes, setPrivateNotes] = useState(c.privateNotes);
+  const c = hub.myCharacter;
+  const [characterName, setCharacterName] = useState(c?.characterName ?? "");
+  const [bio, setBio] = useState(c?.bio ?? "");
+  const [privateNotes, setPrivateNotes] = useState(c?.privateNotes ?? "");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [msgError, setMsgError] = useState(false);
+
+  useEffect(() => {
+    if (hub.myCharacter) {
+      setCharacterName(hub.myCharacter.characterName);
+      setBio(hub.myCharacter.bio);
+      setPrivateNotes(hub.myCharacter.privateNotes);
+    }
+  }, [hub.myCharacter]);
+
+  if (!c) {
+    return (
+      <p className="text-sm text-[var(--color-mist)]">
+        No se encontró tu ficha. Pide al master que te apruebe de nuevo.
+      </p>
+    );
+  }
 
   async function saveCharacter() {
     setSaving(true);
@@ -371,6 +433,7 @@ function PlayerHub({
       setMsg("Personaje guardado");
       onRefresh();
     } catch (e) {
+      setMsgError(true);
       setMsg(e instanceof Error ? e.message : "Error");
     } finally {
       setSaving(false);
@@ -410,7 +473,7 @@ function PlayerHub({
         >
           {saving ? "Guardando…" : "Guardar personaje"}
         </button>
-        {msg && <p className="text-center text-sm text-emerald-400">{msg}</p>}
+        {msg && <StatusMessage message={msg} variant={msgError ? "error" : "success"} />}
       </section>
 
       <section className="space-y-2">
@@ -479,16 +542,19 @@ function ObserverHub({ hub }: { hub: HubView }) {
 
 export function HubPage() {
   const { code } = useParams<{ code: string }>();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [hub, setHub] = useState<HubView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rejoining, setRejoining] = useState(false);
 
-  const stored = loadStoredSession();
+  const stored = code ? loadStoredSessionForCode(code) : null;
+  const participantId = stored?.participantId;
 
   const load = useCallback(async () => {
-    if (!code || !stored) return;
+    if (!code || !participantId) return;
     try {
-      const data = await fetchHub(code, stored.participantId);
+      const data = await fetchHub(code, participantId);
       setHub(data);
       setError(null);
     } catch (e) {
@@ -496,12 +562,13 @@ export function HubPage() {
         try {
           const result = await rejoinCampaign(code);
           if (result.ok && result.you && result.session) {
+            const p = result.session.participants.find((x) => x.id === result.you!.participantId);
             saveStoredSession({
               sessionId: result.session.id,
               code: result.session.code,
               participantId: result.you.participantId,
               role: result.you.role,
-              name: user.displayName,
+              name: p?.name ?? user.displayName,
             });
             const data = await fetchHub(code, result.you.participantId);
             setHub(data);
@@ -514,31 +581,78 @@ export function HubPage() {
       }
       setError(e instanceof Error ? e.message : "Error al cargar");
     }
-  }, [code, stored, user]);
+  }, [code, participantId, user]);
 
   useEffect(() => {
+    if (!code || participantId) {
+      load();
+      return;
+    }
+    if (!user) return;
+
+    let cancelled = false;
+    setRejoining(true);
+    rejoinCampaign(code)
+      .then((result) => {
+        if (cancelled || !result.ok || !result.you || !result.session) return;
+        const p = result.session.participants.find((x) => x.id === result.you!.participantId);
+        saveStoredSession({
+          sessionId: result.session.id,
+          code: result.session.code,
+          participantId: result.you.participantId,
+          role: result.you.role,
+          name: p?.name ?? user.displayName,
+        });
+        navigate(`/hub/${code}`, { replace: true });
+      })
+      .catch(() => {
+        if (!cancelled) setRejoining(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [code, participantId, user, navigate]);
+
+  useEffect(() => {
+    if (!participantId) return;
     load();
-  }, [load]);
+    const id = setInterval(load, 8000);
+    return () => clearInterval(id);
+  }, [load, participantId]);
 
   async function handleLeave() {
     if (stored && code) {
       try {
         await leaveSession(code, stored.participantId);
       } catch {
-        /* ignore */
+        /* desconexión local aunque falle red */
       }
     }
     clearStoredSession();
     window.location.href = "/";
   }
 
-  if (!stored) {
+  if (!code) {
+    return <p className="text-center text-red-300">Código inválido</p>;
+  }
+
+  if (!participantId) {
+    if (rejoining) {
+      return (
+        <p className="text-center text-[var(--color-mist)]">Reconectando a la campaña…</p>
+      );
+    }
     return (
-      <div className="text-center">
-        <p>No estás conectado a esta mesa.</p>
-        <Link to="/unirse" className="text-[var(--color-gold)]">
-          Unirse
+      <div className="space-y-4 text-center">
+        <p>No estás conectado a esta mesa ({code}).</p>
+        <Link to={`/unirse`} className="text-[var(--color-gold)]">
+          Unirse con código
         </Link>
+        {user && (
+          <Link to="/" className="block text-sm text-[var(--color-mist)]">
+            Mis campañas
+          </Link>
+        )}
       </div>
     );
   }
@@ -576,7 +690,7 @@ export function HubPage() {
           <p className="text-xs text-[var(--color-mist)]">Código {hub.code}</p>
           <h1 className="font-display text-2xl text-[var(--color-gold)]">{hub.campaignTitle}</h1>
           <p className="text-sm text-[var(--color-mist)]">
-            Tú: {stored.name} · {ROLE_LABELS[hub.role]}
+            Tú: {stored!.name} · {ROLE_LABELS[hub.role]}
             {hub.isOwner && " · Dueño"}
           </p>
         </div>

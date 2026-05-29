@@ -47,8 +47,8 @@ export function createPlayerJoinRequest(
   const duplicatePending = pending.find(
     (r) =>
       r.status === "pending" &&
-      r.name.toLowerCase() === trimmed.toLowerCase() &&
-      (!userId || r.userId === userId)
+      ((userId && r.userId === userId) ||
+        r.name.toLowerCase() === trimmed.toLowerCase())
   );
   if (duplicatePending) {
     return {

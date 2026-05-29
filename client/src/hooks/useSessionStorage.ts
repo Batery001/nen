@@ -19,6 +19,14 @@ export function loadStoredSession(): StoredSession | null {
   }
 }
 
+/** Sesión guardada solo si coincide con el código de la URL */
+export function loadStoredSessionForCode(code: string): StoredSession | null {
+  const stored = loadStoredSession();
+  if (!stored) return null;
+  if (stored.code.toUpperCase() !== code.toUpperCase().trim()) return null;
+  return stored;
+}
+
 export function saveStoredSession(data: StoredSession): void {
   localStorage.setItem(KEY, JSON.stringify(data));
 }

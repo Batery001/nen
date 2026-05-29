@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { joinSession } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -17,6 +17,12 @@ export function JoinMesaModal({ mesa, onClose }: JoinMesaModalProps) {
   const [name, setName] = useState(user?.displayName ?? "");
   const [loading, setLoading] = useState<"observer" | "player" | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.displayName) {
+      setName((prev) => (prev.trim() ? prev : user.displayName));
+    }
+  }, [user]);
 
   async function enterAsObserver() {
     const trimmed = name.trim();

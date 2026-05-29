@@ -20,7 +20,7 @@ export function WaitingApprovalPage() {
       if (!result.ok) {
         setRejected(true);
         setMessage(result.error ?? "Solicitud rechazada");
-        clearPendingRequest();
+        clearPendingRequest(code);
         return;
       }
 
@@ -32,7 +32,7 @@ export function WaitingApprovalPage() {
           role: result.you.role,
           name: pending.name,
         });
-        clearPendingRequest();
+        clearPendingRequest(code);
         navigate(`/hub/${result.session.code}`, { replace: true });
       }
     } catch (e) {

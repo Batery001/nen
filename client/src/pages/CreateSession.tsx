@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createSessionAsMaster } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -11,6 +11,12 @@ export function CreateSession() {
   const [name, setName] = useState(user?.displayName ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.displayName) {
+      setName((prev) => (prev.trim() ? prev : user.displayName));
+    }
+  }, [user]);
 
   if (!authLoading && !user) {
     return (

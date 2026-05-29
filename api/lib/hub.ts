@@ -57,6 +57,7 @@ export function buildHubView(
     campaignSummary: s.campaignSummary,
     campaignAudioUrl: s.campaignAudioUrl,
     isOwner: Boolean(userId && s.ownerUserId === userId),
+    campaignVisibility: s.visibility ?? "public",
   };
 
   if (me.role === "master") {
@@ -96,6 +97,7 @@ export function applyMasterPatch(session: GameSession, patch: HubMasterPatch): v
   if (patch.campaignAudioUrl !== undefined) session.campaignAudioUrl = patch.campaignAudioUrl;
   if (patch.wiki !== undefined) session.wiki = patch.wiki;
   if (patch.playSessions !== undefined) session.playSessions = patch.playSessions;
+  if (patch.visibility !== undefined) session.visibility = patch.visibility;
 }
 
 export function applyCharacterPatch(

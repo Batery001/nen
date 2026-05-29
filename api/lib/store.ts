@@ -60,7 +60,7 @@ export async function listSessionItems(options?: {
     const filter: Record<string, unknown> = {};
     if (options?.visibility) filter.visibility = options.visibility;
     if (options?.explore) {
-      filter.visibility = { $ne: "private" };
+      filter.visibility = "public";
     }
     if (viewerId) {
       filter.$or = [
@@ -78,7 +78,7 @@ export async function listSessionItems(options?: {
     list = list.filter((s) => (s.visibility ?? "public") === options.visibility);
   }
   if (options?.explore) {
-    list = list.filter((s) => (s.visibility ?? "public") !== "private");
+    list = list.filter((s) => (s.visibility ?? "public") === "public");
   }
   if (viewerId) {
     list = list.filter(

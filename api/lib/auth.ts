@@ -47,9 +47,10 @@ export async function requestLoginCode(
   }
 
   const resendKey = process.env.RESEND_API_KEY;
+  let emailSent = false;
   if (resendKey) {
     try {
-      await fetch("https://api.resend.com/emails", {
+      const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${resendKey}`,
@@ -62,6 +63,8 @@ export async function requestLoginCode(
           text: `Tu código es ${code}. Válido 15 minutos.`,
         }),
       });
+      emailSent = res.ok;
+      if (!res.ok) console.error("Resend error", await res.text());
     } catch (err) {
       console.error("Resend error", err);
     }
@@ -69,8 +72,7 @@ export async function requestLoginCode(
     console.info(`[niku auth] código para ${normalized}: ${code}`);
   }
 
-  const devCode =
-    process.env.NODE_ENV !== "production" || !resendKey ? code : undefined;
+  const devCode = !emailSent ? code : undefined;
 
   return { ok: true, devCode };
 }
