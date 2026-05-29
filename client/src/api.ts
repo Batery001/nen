@@ -189,7 +189,13 @@ function hubUrl(code: string, participantId: string, path = "hub"): string {
 export async function fetchHub(code: string, participantId: string): Promise<HubView> {
   const res = await fetch(hubUrl(code, participantId), { headers: authHeaders() });
   if (!res.ok) throw new Error(await parseError(res, "No se pudo cargar el hub"));
-  return readJson(res);
+  const data = await readJson<HubView>(res);
+  if (!data.role || !data.participantId) {
+    throw new Error(
+      "El servidor devolvió datos incorrectos. Si estás en Vercel, espera el último deploy o borra VITE_API_URL en variables de entorno."
+    );
+  }
+  return data;
 }
 
 export async function updateHub(

@@ -1133,6 +1133,20 @@ export function HubPage() {
         </button>
       </div>
 
+      {!hub.role && (
+        <div className="space-y-3 rounded-lg border border-red-900/50 bg-red-950/30 p-4 text-sm">
+          <p className="text-red-200">
+            No se pudo cargar la vista de la campaña (respuesta incompleta del servidor).
+          </p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="text-[var(--color-gold)] hover:underline"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
       {hub.role === "master" && <MasterHub hub={hub} onRefresh={load} />}
       {hub.role === "player" && <PlayerHub hub={hub} onRefresh={load} />}
       {hub.role === "observer" && <ObserverHub hub={hub} />}
